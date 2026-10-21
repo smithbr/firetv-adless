@@ -40,13 +40,13 @@ adb install adless.apk
 open the project, set the build variant to `release` (Build > Select Build
 Variant), pick the TV in the device menu and press Run.
 
-**Or build it in a terminal:** it needs JDK 17+ and the Android SDK; the
-build downloads the platform it compiles against. On macOS:
-`brew install --cask temurin android-commandlinetools`, then
-`export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools` and
-`yes | sdkmanager --licenses`. On Linux, get OpenJDK 17+ and Android's
-command-line tools from your package manager, set `ANDROID_HOME` to the SDK
-and accept its licenses the same way. Then
+**Or build it in a terminal:** it needs [Temurin](https://adoptium.net)
+17 to 27 and the Android SDK; the build downloads the platform it compiles
+against. On macOS: `brew install --cask temurin android-commandlinetools`,
+then `export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools` and
+`yes | sdkmanager --licenses`. On Linux, get Temurin from Adoptium's
+package repository and Android's command-line tools, set `ANDROID_HOME` to
+the SDK and accept its licenses the same way. Then
 `tools/install.sh --launch`.
 
 Until it's Home, open it from Your Apps on Amazon's home screen.

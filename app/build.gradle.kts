@@ -2,7 +2,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
 
@@ -44,8 +43,8 @@ android {
 
     // The no-op DeviceTest the shipped variants compile against.
     sourceSets {
-        getByName("release").java.srcDir("src/shipping/java")
-        getByName("debug").java.srcDir("src/shipping/java")
+        getByName("release").kotlin.directories.add("src/shipping/java")
+        getByName("debug").kotlin.directories.add("src/shipping/java")
     }
 
     compileOptions {
@@ -55,6 +54,8 @@ android {
 
     buildFeatures {
         compose = true
+        // Each build type sets its own app_name; AGP 9 turns this off by default.
+        resValues = true
     }
 
     lint {
