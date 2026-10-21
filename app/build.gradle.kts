@@ -29,8 +29,8 @@ android {
         // Fire OS 8 is Android 11 (API 30); Fire OS 6 is API 25.
         minSdk = 25
         targetSdk = 30
-        versionCode = 2
-        versionName = "0.2"
+        versionCode = 3
+        versionName = "0.3"
         resValue("string", "app_name", "Launcher")
     }
 
