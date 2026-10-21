@@ -18,7 +18,7 @@ HOF_SERVICE="${HOF}/.HijackService"
 STEPS=(
     "doctor;;check the TV, launcher, debloat and storage"
     "setup;;walk through setting up the TV, step by step"
-    "install;;put the launcher on the TV and make it Home"
+    "install;;put the launcher on the TV, clear old builds and make it Home"
     "tune;[NAME on|off];disable Amazon's ad apps and apply speed tweaks"
     "apps;[list|add APP|remove [APP...]];get apps from the Appstore, sideload or uninstall"
     "clean;;trim app caches and remove old launcher builds"
@@ -194,6 +194,8 @@ do_install() {
     fi
     if [[ "${how}" == Build* ]]; then
         ./install.sh --launch
+        # A failed uninstall is already reported; Home setup still runs.
+        remove_old_builds || true
         make_home
         return
     fi
@@ -210,6 +212,7 @@ do_install() {
     install_launcher ${replace[@]+"${replace[@]}"} "${tmp}/launcher.apk"
     tv shell am start -n "${LAUNCHER_PKG}/.MainActivity" >/dev/null
     _success "Installed the launcher and opened it on the TV."
+    remove_old_builds || true
     make_home
 }
 
@@ -246,11 +249,16 @@ do_reboot() {
     _success "The TV is restarting."
 }
 
-# Trims app caches, then uninstalls old, debug and devicetest launcher
-# builds (blank tiles beside the release), asking first. Outside a
-# terminal it only lists them.
+# Trims app caches, then removes old launcher builds.
 do_clean() {
     ./clean.sh
+    remove_old_builds
+}
+
+# Uninstalls old, debug and devicetest launcher builds (blank tiles beside
+# the release) when the TV has any, asking first. Outside a terminal it
+# only lists them. Clean and Install both end with it.
+remove_old_builds() {
     ./remove-old-launchers.sh --check || return 0
     printf '\n'
     if [[ -t 0 && -t 1 ]]; then

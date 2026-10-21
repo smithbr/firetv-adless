@@ -2,8 +2,8 @@
 # name before the rename and the debug and devicetest variants of both.
 # Each installs beside the release, as a second blank tile in Apps.
 # remove-old-launchers.sh uninstalls the ones on the TV;
-# Doctor warns while any is, and firetv clean offers to remove them. tests/device installs the devicetest one again
-# when it runs. Add a line here when the launcher's applicationId changes.
+# Doctor warns while any is, and firetv install and clean offer to remove
+# them. tests/device installs the devicetest one again when it runs. Add a line here when the launcher's applicationId changes.
 la.bsmith.adless
 la.bsmith.adless.debug
 la.bsmith.adless.devicetest

@@ -3,7 +3,7 @@
 # the TV: old names, debug and devicetest builds. The release
 # (la.bsmith.launcher) stays. Lists them and asks first; --yes skips the
 # question, --list only lists them, and --check prints nothing and exits 0
-# when the TV has any (firetv clean uses it).
+# when the TV has any (firetv install and clean use it).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 source ./adb.sh

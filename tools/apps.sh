@@ -292,12 +292,12 @@ do_add() {
 do_remove() {
     local installed apps app found pkg name picked="" out
     local -a opts=()
+    (( $# > 0 )) || [[ -t 0 ]] || die "Name the apps to remove: firetv apps remove APP... (firetv apps list shows them)"
     connect
     installed="$(read_installed)"
     apps="$(installed_tsv "${installed}")"
     if (( $# == 0 )); then
         [[ -n "${apps}" ]] || { log_info "No installed apps to remove."; return 0; }
-        [[ -t 0 ]] || die "Name the apps to remove: firetv apps remove APP..."
         while IFS=$'\t' read -r pkg name; do
             opts+=("$(printf '%-24s %s' "${name}" "${pkg}")"$'\t'"${pkg}")
         done <<< "${apps}"

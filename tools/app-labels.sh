@@ -4,8 +4,9 @@
 # AppLabelsReceiver first. For apps it does not name (the launcher missing or too
 # old), it copies the manifest and resource table out of the APK (the TV
 # has unzip) and reads the label with the SDK's aapt2, when there is one.
-# The package stands in for a name neither can give. Expects the caller to
-# have connected; takes no lock.
+# A name read from an APK is cached by package and versionCode, since it
+# changes only when the app updates. The package stands in for a name none
+# of these give. Expects the caller to have connected; takes no lock.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 # Which launcher build to ask; tests point it at the devicetest build.
@@ -22,6 +23,16 @@ from_launcher() {
     [[ "${out}" == *'data="'* ]] || return 0
     out="${out#*data=\"}"
     printf '%s\n' "${out%\"}"
+}
+
+# "package<tab>name<tab>versionCode" lines, one per name read from an APK.
+CACHE="${XDG_CACHE_HOME:-${HOME}/.cache}/firetv/labels.tsv"
+
+# "package<tab>versionCode" for each installed package, or nothing on a
+# Fire OS whose pm cannot show versions (before Android 9).
+versions() {
+    tv shell pm list packages --show-versioncode 2>/dev/null | tr -d '\r' \
+        | awk '$1 ~ /^package:/ && $2 ~ /^versionCode:[0-9]+$/ { print substr($1, 9) "\t" substr($2, 13) }' || true
 }
 
 # Newest aapt2 in the SDK (ANDROID_HOME, or local.properties' sdk.dir), else
@@ -63,13 +74,44 @@ missing=()
 for pkg in "$@"; do
     awk -F '\t' -v p="${pkg}" '$1 == p { found = 1 } END { exit !found }' <<< "${known}" || missing+=("${pkg}")
 done
+# The launcher's names are current; the cache stands in only for the rest.
+vers=""
+if (( ${#missing[@]} > 0 )); then
+    vers="$(versions)"
+    cached="$(cat "${CACHE}" 2>/dev/null || true)"
+    left=()
+    for pkg in "${missing[@]}"; do
+        ver="$(awk -F '\t' -v p="${pkg}" '$1 == p { print $2; exit }' <<< "${vers}")"
+        name=""
+        [[ -z "${ver}" ]] || name="$(awk -F '\t' -v p="${pkg}" -v v="${ver}" '$1 == p && $3 == v { print $2; exit }' <<< "${cached}")"
+        if [[ -n "${name}" ]]; then
+            known+=$'\n'"${pkg}"$'\t'"${name}"
+        else
+            left+=("${pkg}")
+        fi
+    done
+    missing=("${left[@]+"${left[@]}"}")
+fi
 aapt2=""
 (( ${#missing[@]} == 0 )) || aapt2="$(find_aapt2)"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/launcher-labels.XXXXXX")"
 trap 'rm -rf "${tmp}"' EXIT
 [[ -z "${aapt2}" ]] || fetch "${missing[@]}"
+fresh=""
 for pkg in "$@"; do
     name="$(awk -F '\t' -v p="${pkg}" '$1 == p { print $2; exit }' <<< "${known}")"
-    [[ -n "${name}" || -z "${aapt2}" ]] || name="$(label "${pkg}" || true)"
+    if [[ -z "${name}" && -n "${aapt2}" ]]; then
+        name="$(label "${pkg}" || true)"
+        ver="$(awk -F '\t' -v p="${pkg}" '$1 == p { print $2; exit }' <<< "${vers}")"
+        [[ -z "${name}" || -z "${ver}" ]] || fresh+="${pkg}"$'\t'"${name}"$'\t'"${ver}"$'\n'
+    fi
     printf '%s\t%s\n' "${pkg}" "${name:-${pkg}}"
 done
+# New names replace each package's old line; written whole, then moved
+# into place, so a reader never sees half a file.
+if [[ -n "${fresh}" ]]; then
+    mkdir -p "$(dirname "${CACHE}")"
+    { awk -F '\t' 'NR == FNR { drop[$1]; next } !($1 in drop)' <(printf '%s' "${fresh}") "${CACHE}" 2>/dev/null || true
+      printf '%s' "${fresh}"; } > "${tmp}/labels.tsv"
+    mv "${tmp}/labels.tsv" "${CACHE}"
+fi
