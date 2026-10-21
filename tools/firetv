@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
-# One menu for everything the tools do: check the TV, install the launcher,
-# make it Home, debloat, tweak, add and remove apps, clean, reboot, and
-# reset. Wraps the scripts beside it. firetv setup walks a first-time user
-# through the TV, connecting and the setup steps in order. With another
-# command (firetv doctor), runs that one step without the menu; see
-# firetv --help.
+# Set up and look after the Fire TV. Every step is both a menu entry and a
+# command: firetv shows the menu, firetv STEP runs that one step. STEPS is
+# the one list of them, for the menu, the commands and --help. Wraps the
+# scripts beside it.
 set -euo pipefail
 # Where the user ran this from, for APK paths they type relative to it.
 START_DIR="${PWD}"
@@ -16,66 +14,62 @@ LAUNCHER_PKG="la.bsmith.launcher"
 HOF="io.github.toolicious.homeonfire"
 HOF_SERVICE="${HOF}/.HijackService"
 
+# The steps, in menu order, as "NAME;ARGS;WHAT IT DOES". firetv NAME runs
+# do_NAME; the menu lists NAME and what it does. Doctor is first, so Enter
+# on the menu changes nothing.
+STEPS=(
+    "doctor;;check the TV, launcher, debloat and storage"
+    "setup;;walk through setting up the TV, step by step"
+    "install;;put the launcher on the TV"
+    "home;;make the launcher the Home app"
+    "debloat;;disable Amazon's ad and telemetry apps"
+    "tweaks;[NAME on|off];faster animations, less background scanning"
+    "apps;;install an APK or uninstall apps"
+    "clean;;trim app caches and remove old launcher builds"
+    "reboot;;restart the TV"
+    "reset;;remove the launcher and restore Amazon's home"
+    "disconnect;;drop the adb connection"
+)
+
+# shellcheck disable=SC2016  # the backticks are Markdown
 usage() {
-    show_help <<'EOF'
-# firetv
-
-Set up and look after the Fire TV: with no command, a menu for every step.
-
-## Usage
-
-    firetv [COMMAND [ARGS]]
-
-## Commands
-
-| Command | What it does |
-|---|---|
-| `setup` | Walk through setting up the TV, step by step |
-| `doctor` | Check the connection, launcher, core packages, debloat and storage |
-| `tweaks` | List the tweaks, each on, off or partly on |
-| `tweak NAME on\|off` | Apply a tweak; off puts back the values it replaced |
-| `clean` | Trim app caches and show the storage freed |
-| `old-builds [--yes\|--list]` | Uninstall old, debug and devicetest launcher builds |
-| `reboot` | Restart the TV |
-| `disconnect` | Drop the adb connection |
-
-The TV is the IP that `setup` or the menu asked for, or `FIRETV_HOST`
-(IP, or IP:port) when set.
-EOF
+    local step name args what
+    {
+        printf '# firetv\n\nSet up and look after the Fire TV. With no command, a menu of the same steps.\n\n'
+        printf '## Usage\n\n    firetv [COMMAND [ARGS]]\n\n## Commands\n\n| Command | What it does |\n|---|---|\n'
+        for step in "${STEPS[@]}"; do
+            IFS=';' read -r name args what <<< "${step}"
+            printf '| `%s` | %s |\n' "${name}${args:+ ${args//|/\\|}}" "${what}"
+        done
+        printf '\n`tweaks` with no arguments is a checklist in a terminal and a list'
+        printf ' elsewhere. setup, install, home, debloat, apps and reset need a terminal.\n\n'
+        printf 'The TV is the IP that `setup` or the menu asked for, or `FIRETV_HOST`\n(IP, or IP:port) when set.\n'
+    } | show_help
 }
 
-# Commands that skip the menu. Each script connects and takes the TV lock.
-MODE=menu
-case "${1:-}" in
-    "") ;;
-    setup) MODE=setup ;;
+CMD="${1:-}"
+case "${CMD}" in
     -h|--help|help) usage; exit 0 ;;
-    doctor) exec ./doctor.sh ;;
-    clean) exec ./clean.sh ;;
-    old-builds) shift; exec ./remove-old-launchers.sh "$@" ;;
-    tweaks) exec ./tweak.sh ;;
-    tweak) shift; exec ./tweak.sh "$@" ;;
-    reboot)
-        # shellcheck source=adb.sh
-        source ./adb.sh
-        connect
-        tv reboot
-        _success "The TV is restarting."
-        exit 0
-        ;;
-    disconnect)
-        # shellcheck source=adb.sh
-        source ./adb.sh
-        adb disconnect "${TV}"
-        exit 0
-        ;;
-    *) die "Unknown command: $1 (see firetv --help)" ;;
 esac
+[[ $# -eq 0 ]] || shift
+if [[ -n "${CMD}" ]]; then
+    found=""
+    for step in "${STEPS[@]}"; do
+        [[ "${step%%;*}" != "${CMD}" ]] || found="${step}"
+    done
+    [[ -n "${found}" ]] || die "Unknown command: ${CMD} (see firetv --help)"
+    found="${found#*;}"
+    [[ -n "${found%%;*}" || $# -eq 0 ]] || die "firetv ${CMD} takes no arguments (see firetv --help)"
+fi
 
-# Interactive only: every step needs a choice or a confirm, and the scripts
-# it wraps cover the non-interactive cases.
-command -v gum >/dev/null 2>&1 || die "gum not found: brew install gum"
-[[ -t 0 && -t 1 ]] || die "firetv is interactive; run it in a terminal"
+# The menu and the steps that ask need gum and a terminal; doctor, clean,
+# reboot, disconnect and tweaks run anywhere.
+case "${CMD}" in
+    ""|setup|install|home|debloat|apps|reset)
+        command -v gum >/dev/null 2>&1 || die "gum not found: brew install gum"
+        [[ -t 0 && -t 1 ]] || die "firetv${CMD:+ ${CMD}} is interactive; run it in a terminal"
+        ;;
+esac
 command -v adb >/dev/null 2>&1 || die "adb not found: run tools/setup.sh, or brew install --cask android-platform-tools"
 
 # Runs one menu action in a subshell, so die and the TV lock end with the
@@ -90,10 +84,14 @@ run() {
     (( rc == 0 )) || log_warn "Stopped (exit ${rc})"
 }
 
-# Doctor exits 1 when a check failed; its summary already says so.
+# Doctor exits 1 when a check failed. Its summary already says so, so only
+# firetv doctor passes that on, not the menu or the walkthrough.
 do_doctor() {
-    ./doctor.sh || true
+    local rc=0
+    ./doctor.sh || rc=$?
+    [[ "${CMD}" != doctor ]] || return "${rc}"
 }
+
 
 # versionName of an installed package, or empty.
 version() {
@@ -231,9 +229,15 @@ Untick one to keep it on, or to turn it back on." "${opts[@]}")" || return 0
 
 # Checklist of tweak.sh's tweaks: ticked means on. A ticked tweak not fully
 # on is turned on; an unticked one not fully off is turned off.
+# With NAME on|off, applies that tweak; outside a terminal, lists them;
+# otherwise a checklist.
 do_tweaks() {
     local rows name st desc picked on="" change=""
     local -a opts=()
+    if (( $# > 0 )) || [[ ! -t 0 || ! -t 1 ]] || ! command -v gum >/dev/null 2>&1; then
+        ./tweak.sh "$@"
+        return
+    fi
     rows="$(spin_out "Reading the TV's settings" ./tweak.sh --tsv)"
     while IFS=$'\t' read -r name st desc; do
         opts+=("$(printf '%-18s %-7s %s' "${name}" "${st}" "${desc}")"$'\t'"${name}")
@@ -256,24 +260,45 @@ do_tweaks() {
     done
 }
 
+# Asks first in the menu; firetv reboot was asked for by name.
 do_reboot() {
     connect
-    confirm "Restart the TV at ${TV}?" || return 0
+    [[ -n "${CMD}" ]] || confirm "Restart the TV at ${TV}?" || return 0
     tv reboot
     _success "The TV is restarting."
 }
 
-# Sideload an APK, uninstall apps that were installed (pm list -3), or
-# uninstall old launcher builds. The launcher and Home on Fire are left to
-# Reset, which removes them in order.
+# Trims app caches, then uninstalls old, debug and devicetest launcher
+# builds (blank tiles beside the release), asking first. Outside a
+# terminal it only lists them.
+do_clean() {
+    ./clean.sh
+    ./remove-old-launchers.sh --check || return 0
+    printf '\n'
+    if [[ -t 0 && -t 1 ]]; then
+        ./remove-old-launchers.sh
+    else
+        ./remove-old-launchers.sh --list
+        log_info "Run firetv clean in a terminal to remove them."
+    fi
+}
+
+do_disconnect() {
+    adb disconnect "${TV}"
+}
+
+# Sideload an APK, or uninstall apps that were installed (pm list -3).
+# The launcher and Home on Fire are left to Reset, which removes them in
+# order; old launcher builds to Clean.
 do_apps() {
     local what
-    what="$(gum choose --header "Add/Remove Apps" "Add an app (APK file)" "Remove apps" "Remove old launcher builds")" || return 0
-    case "${what}" in
-        Add*) connect; add_app ;;
-        "Remove apps") connect; remove_apps ;;
-        *) ./remove-old-launchers.sh ;;
-    esac
+    what="$(gum choose --header "apps" "Add an app (APK file)" "Remove apps")" || return 0
+    connect
+    if [[ "${what}" == Add* ]]; then
+        add_app
+    else
+        remove_apps
+    fi
 }
 
 add_app() {
@@ -306,7 +331,7 @@ remove_apps() {
     launchable="$(sort -u <<< "${launchable}")"
     while read -r pkg; do
         [[ -n "${pkg}" && "${pkg}" != "${LAUNCHER_PKG}" && "${pkg}" != "${HOF}" ]] || continue
-        # Old launcher builds: Remove old launcher builds, which names them.
+        # Old launcher builds: Clean removes them.
         ! grep -qxF "${pkg}" <<< "${old}" || continue
         grep -qxF "package:${pkg}" <<< "${installed}" && pkgs+=("${pkg}")
     done <<< "${launchable}"
@@ -421,12 +446,10 @@ show_tv_steps() {
     confirm "Done on the TV?" || { log_info "Run firetv setup again when it is."; exit 0; }
 }
 
-[[ "${MODE}" != setup ]] || show_tv_steps
-# Asks for the TV's IP unless one is saved or FIRETV_HOST is set.
-# shellcheck source=adb.sh
-source ./adb.sh
-
-if [[ "${MODE}" == setup ]]; then
+# The walkthrough: the TV's own steps, connecting, then install, home,
+# debloat and doctor.
+do_setup() {
+    [[ "${TV_STEPS_SHOWN:-}" == true ]] || show_tv_steps
     [[ "${FIRETV_HOST_ASKED:-}" == true ]] || confirm "Use the TV at ${TV}?" || ask_host
     wait_for_tv
     walk_step "Step 1 of 4: Install the launcher" do_install
@@ -435,33 +458,32 @@ if [[ "${MODE}" == setup ]]; then
     walk_step "Step 4 of 4: Check everything" do_doctor
     printf '\n'
     _success "Set up. Run firetv any time for the menu."
-    exit 0
+}
+
+# firetv setup shows the TV's own steps before asking for its IP.
+if [[ "${CMD}" == setup ]]; then
+    show_tv_steps
+    TV_STEPS_SHOWN=true
+fi
+# Asks for the TV's IP unless one is saved or FIRETV_HOST is set.
+# shellcheck source=adb.sh
+source ./adb.sh
+
+if [[ -n "${CMD}" ]]; then
+    "do_${CMD}" "$@"
+    exit
 fi
 
+menu=()
+for step in "${STEPS[@]}"; do
+    IFS=';' read -r name _ what <<< "${step}"
+    menu+=("$(printf '%-11s %s' "${name}" "${what}")|${name}")
+done
+menu+=("quit|quit")
 while true; do
     _header "Launcher: TV ${TV}"
-    choice="$(gum choose --label-delimiter='|' \
-        "Doctor           check the TV, launcher, debloat and storage|doctor" \
-        "Install          put the launcher on the TV|install" \
-        "Make Home        make the launcher the Home app|home" \
-        "Debloat          disable Amazon's ad and telemetry apps|debloat" \
-        "Tweaks           faster animations, less background scanning|tweaks" \
-        "Add/Remove Apps  install an APK or uninstall apps|apps" \
-        "Clean            trim app caches to free storage|clean" \
-        "Reboot           restart the TV|reboot" \
-        "Reset            remove the launcher and restore Amazon's home|reset" \
-        "Quit|quit")" || exit 0
-    case "${choice}" in
-        doctor)  run do_doctor ;;
-        install) run do_install ;;
-        home)    run do_home ;;
-        debloat) run do_debloat ;;
-        tweaks)  run do_tweaks ;;
-        apps)    run do_apps ;;
-        clean)   run ./clean.sh ;;
-        reboot)  run do_reboot ;;
-        reset)   run do_reset ;;
-        quit)    exit 0 ;;
-    esac
+    choice="$(gum choose --label-delimiter='|' "${menu[@]}")" || exit 0
+    [[ "${choice}" != quit ]] || exit 0
+    run "do_${choice}"
     printf '\n'
 done

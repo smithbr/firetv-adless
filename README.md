@@ -40,14 +40,14 @@ different TV for one command, set `FIRETV_HOST` to its IP.
 
 ### Updating
 
-Run `firetv` and pick **Install** to update to the latest release. A
+Run `firetv install` (or pick install in the menu) to update to the latest release. A
 launcher installed from v0.2 or earlier, or built on another computer, is
 signed with a different key, so Install offers to replace it; that clears
 its favorites, hidden apps and theme.
 
 ### Make it Home
 
-The walkthrough's second step, or **Make Home** in the menu. It asks
+The walkthrough's second step, or `firetv home`. It asks
 before changing anything. Until it's Home, open the launcher from Your Apps
 on Amazon's home screen.
 
@@ -68,7 +68,7 @@ to Amazon's home unless you turn them off in Home on Fire.
 
 ### Debloat
 
-The walkthrough's third step, or **Debloat** in the menu, lets you choose
+The walkthrough's third step, or `firetv debloat`, lets you choose
 which of the ad, recommendation and telemetry packages in
 `tools/packages-disabled.txt` to disable. A tick means off, and every
 package starts ticked; untick one to keep it on or turn it back on.
@@ -79,24 +79,20 @@ TV tuner and a few they depend on), are never disabled.
 
 ### Look after the TV
 
-The menu also has **Doctor** (checks the connection, launcher, core
-packages, debloat and storage), **Tweaks** (faster animations, less
-background scanning; turning one off restores the old values), **Clean**
-(trims app caches) and **Reboot**. **Add/Remove Apps** sideloads or
-uninstalls apps, and removes old launcher builds: earlier names and debug
-or devicetest builds, listed in `tools/packages-old-launchers.txt`, which
-Doctor warns about. Most run without the menu too:
+Every menu entry is also a command, with the same name: `firetv doctor`
+runs what doctor in the menu runs. `firetv --help` lists them all.
 
 ```bash
-firetv doctor
-firetv tweaks                      # list them
-firetv tweak fast-animations on
-firetv clean
-firetv old-builds                  # list old launcher builds, then ask to uninstall them
+firetv doctor                      # check the connection, launcher, core packages, debloat and storage; changes nothing
+firetv tweaks                      # checklist in a terminal, list elsewhere
+firetv tweaks fast-animations on   # turning one off restores the old values
+firetv clean                       # trim app caches, then remove old launcher builds, asking first
 firetv reboot
 ```
 
-`firetv --help` lists them all.
+Old launcher builds are earlier names and debug or devicetest builds,
+listed in `tools/packages-old-launchers.txt`. Each shows as a blank tile in
+Apps; doctor warns about them.
 
 ## Themes
 
@@ -167,6 +163,6 @@ tools/uninstall.sh         # remove this launcher from the TV
 tools/restore-debloat.sh   # re-enable every disabled package
 ```
 
-**Reset** in the `firetv` menu runs the same steps, asking before each.
+`firetv reset` runs the same steps, asking before each.
 
 A factory reset (Settings > My Fire TV > Reset) also undoes all of it.

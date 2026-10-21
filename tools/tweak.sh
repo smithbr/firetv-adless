@@ -100,7 +100,7 @@ main() {
         "") connect; list false ;;
         --tsv) connect; list true ;;
         *)
-            [[ "${2:-}" =~ ^(on|off)$ && $# -eq 2 ]] || die "Usage: firetv tweak NAME on|off (see firetv tweaks)"
+            [[ "${2:-}" =~ ^(on|off)$ && $# -eq 2 ]] || die "Usage: firetv tweaks NAME on|off (firetv tweaks lists them)"
             connect
             apply "$1" "$2"
             ;;

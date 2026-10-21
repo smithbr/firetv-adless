@@ -70,7 +70,7 @@ check_debloat() {
             result PASS "${groups[${i}]}: none on this TV"
         elif (( off < present )); then
             result WARN "${groups[${i}]}: ${off} of ${present} off"
-            add_next_step "firetv, then Debloat"
+            add_next_step "firetv debloat"
         else
             result PASS "${groups[${i}]}: ${off} of ${present} off"
         fi
@@ -81,7 +81,7 @@ check_launcher() {
     local installed="$1" home
     if ! grep -qxF "package:${LAUNCHER_PKG}" <<< "${installed}"; then
         result WARN "Launcher not installed"
-        add_next_step "firetv, then Install"
+        add_next_step "firetv install"
         return 0
     fi
     result PASS "Launcher installed"
@@ -94,7 +94,7 @@ check_launcher() {
         result PASS "Home on Fire installed (opens the launcher from Amazon's Home)"
     else
         result WARN "Launcher is not Home"
-        add_next_step "firetv, then Make Home"
+        add_next_step "firetv home"
     fi
 }
 
@@ -107,7 +107,7 @@ check_old_launchers() {
     done < <(names packages-old-launchers.txt)
     if (( ${#old[@]} > 0 )); then
         result WARN "Old launcher builds installed: ${old[*]}"
-        add_next_step "firetv old-builds"
+        add_next_step "firetv clean"
     fi
     return 0
 }
