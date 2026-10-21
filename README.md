@@ -20,7 +20,7 @@ If macOS offers to install the command line developer tools, accept, then
 run the first line again.
 
 `setup.sh` installs [Homebrew](https://brew.sh) if it is missing, then
-`adb` and [gum](https://github.com/charmbracelet/gum), and offers to put
+`adb` from the [Brewfile](Brewfile), asking first, and offers to put
 Homebrew and the `firetv` command on PATH in your shell profile. While
 this repo is private, it also installs GitHub's `gh` and signs you in, which
 downloading the launcher needs. On Linux it lists what to install instead.

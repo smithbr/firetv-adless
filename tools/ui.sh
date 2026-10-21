@@ -50,3 +50,31 @@ spin_out() {
         "$@" < /dev/null
     fi
 }
+
+# A line of text, by gum input or a question on stderr answered on stdin.
+# VALUE, when given, is offered: gum starts with it, and a plain Enter keeps
+# it. Esc in gum returns 1; end of input gives VALUE.
+#   ask_text HEADER PLACEHOLDER [VALUE]
+ask_text() {
+    local header="$1" placeholder="$2" value="${3:-}" reply=""
+    if [[ "$(prompt_mode)" == gum ]]; then
+        gum input --header "${header}" --placeholder "${placeholder}" --value "${value}"
+        return
+    fi
+    printf '%s%s: ' "${header}" "${value:+ [${value}]}" >&2
+    IFS= read -r reply || reply=""
+    printf '%s\n' "${reply:-${value}}"
+}
+
+# One of the ITEMs, by gum filter (type to narrow) or choose_one's numbered
+# list. Prints nothing when none is picked.
+#   pick_filtered HEADER PLACEHOLDER ITEM...
+pick_filtered() {
+    local header="$1" placeholder="$2"
+    shift 2
+    if [[ "$(prompt_mode)" == gum ]]; then
+        printf '%s\n' "$@" | gum filter --header "${header} (type to filter)" --placeholder "${placeholder}" || true
+        return 0
+    fi
+    choose_one "${header}" "" "$@"
+}

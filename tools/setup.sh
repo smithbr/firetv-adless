@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Set up this computer for the tools: Homebrew if it is missing, adb, gum,
-# GitHub's gh while the repo is private, and the firetv command on PATH: all
+# Set up this computer for the tools: Homebrew if it is missing, then the
+# Brewfile (adb), GitHub's gh while the repo is private, and the firetv command on PATH: all
 # that downloading and installing the released APK needs. Then it offers to
 # carry on with firetv setup, which walks through the TV. --build also sets up building the launcher here: Temurin, the
 # Android SDK and its licenses, and sdk.dir in local.properties, so no
@@ -13,9 +13,9 @@ source ./ui.sh
 ROOT="$(cd .. && pwd)"
 BIN="${FIRETV_BIN:-${HOME}/.local/bin}"
 
-# Homebrew packages, as "KIND NAME COMMAND": KIND is formula or cask, and
-# COMMAND on PATH (- for none) means it came some other way and is kept.
-RUN_PKGS=("formula gum gum" "cask android-platform-tools adb")
+# Packages outside the Brewfile, as "KIND NAME COMMAND": KIND is formula or
+# cask, and COMMAND on PATH (- for none) means it came some other way and is
+# kept. Building is for developers, so these are not in the Brewfile.
 BUILD_PKGS=("cask temurin -" "cask android-commandlinetools sdkmanager")
 
 # Homebrew's brew, also when its shellenv is not in this shell yet.
@@ -33,7 +33,7 @@ setup_brew() {
     local brew on_path=true
     command -v brew >/dev/null 2>&1 || on_path=false
     if ! brew="$(command -v brew || find_brew)"; then
-        printf 'Homebrew installs adb and gum. Its installer asks for your password and may install Apple'"'"'s Command Line Tools.\n'
+        printf 'Homebrew installs adb. Its installer asks for your password and may install Apple'"'"'s Command Line Tools.\n'
         confirm "Install Homebrew (https://brew.sh)?" || die "Homebrew is needed: https://brew.sh"
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         brew="$(find_brew)" || die "Homebrew did not install; see https://brew.sh"
@@ -43,6 +43,21 @@ setup_brew() {
     _check "Homebrew"
     [[ "${on_path}" == true ]] \
         || add_to_profile "Homebrew" "brew shellenv" "eval \"\$(${brew} shellenv)\"" "${brew} shellenv | source"
+}
+
+# Installs what the Brewfile lists, asking first, unless it is installed.
+# adb that came some other way (Android Studio, say) is kept.
+brew_bundle() {
+    local brewfile="${ROOT}/Brewfile" missing
+    if tool_installed adb || brew bundle check --file "${brewfile}" >/dev/null 2>&1; then
+        _check "adb"
+        return 0
+    fi
+    missing="$(brew bundle list --file "${brewfile}" --all 2>/dev/null | paste -sd ' ' -)"
+    confirm "Install ${missing:-adb} with Homebrew (see Brewfile)?" \
+        || die "firetv needs adb: brew bundle --file ${brewfile}"
+    spin "Installing ${missing:-adb}" brew bundle install --file "${brewfile}"
+    _check "adb installed"
 }
 
 # Installs each "KIND NAME COMMAND" not installed yet.
@@ -66,7 +81,6 @@ brew_install() {
 linux_hints() {
     local build="$1"
     tool_installed adb || _caution "adb: sudo apt install adb (or Android's Platform-Tools)"
-    tool_installed gum || _caution "gum: https://github.com/charmbracelet/gum#installation"
     if [[ "${build}" == true ]]; then
         command -v java >/dev/null 2>&1 || _caution "Java: Temurin 17 to 27 from Adoptium's package repository"
         [[ -n "${ANDROID_HOME:-}" ]] || _caution "Android SDK: Android's command-line tools, then set ANDROID_HOME to the SDK"
@@ -220,7 +234,7 @@ main() {
     case "${OSTYPE}" in
         darwin*)
             setup_brew
-            brew_install "${RUN_PKGS[@]}"
+            brew_bundle
             [[ "${build}" == false ]] || brew_install "${BUILD_PKGS[@]}"
             ;;
         linux*)
@@ -236,7 +250,7 @@ main() {
     add_bin_to_path
 
     _success "This computer is set up."
-    if [[ -t 0 && -t 1 ]] && tool_installed gum && confirm "Set up the TV now?"; then
+    if [[ -t 0 && -t 1 ]] && confirm "Set up the TV now?"; then
         exec "${ROOT}/tools/firetv" setup
     fi
     log_info "Run firetv setup to set up the TV, or firetv for the menu (in a new terminal if PATH just changed)."

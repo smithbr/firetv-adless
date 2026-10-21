@@ -59,11 +59,11 @@ if [[ -n "${CMD}" ]]; then
     [[ -n "${found%%;*}" || $# -eq 0 ]] || die "firetv ${CMD} takes no arguments (see firetv --help)"
 fi
 
-# The menu and the steps that ask need gum and a terminal; doctor, tune,
-# apps, clean and reboot run anywhere.
+# The menu and the steps that ask need a terminal; doctor, tune, apps,
+# clean and reboot run anywhere. gum draws the prompts when it is installed;
+# without it they are numbered lists and plain questions.
 case "${CMD}" in
     ""|setup|install|reset)
-        command -v gum >/dev/null 2>&1 || die "gum not found: brew install gum"
         [[ -t 0 && -t 1 ]] || die "firetv${CMD:+ ${CMD}} is interactive; run it in a terminal"
         ;;
 esac
@@ -186,7 +186,8 @@ do_install() {
     # The user has agreed to the replacing; install_launcher need not ask.
     [[ "${OLD_KEY}" == false ]] || replace=(--replace)
     if [[ "${confirmed}" == false ]] && can_build; then
-        if ! how="$(gum choose --header "Install the launcher" "Download the latest release" "Build it here (tools/install.sh)")"; then
+        how="$(choose_one "Install the launcher" "" "Download the latest release" "Build it here (tools/install.sh)")"
+        if [[ -z "${how}" ]]; then
             [[ -z "${INSTALLED}" ]] || make_home
             return 0
         fi
@@ -270,11 +271,12 @@ do_apps() {
         ./apps.sh "$@"
         return
     fi
-    if [[ ! -t 0 || ! -t 1 ]] || ! command -v gum >/dev/null 2>&1; then
+    if [[ ! -t 0 || ! -t 1 ]]; then
         ./apps.sh list
         return
     fi
-    what="$(gum choose --header "apps" "Get an app from the Appstore" "Add an app (APK file)" "Remove apps")" || return 0
+    what="$(choose_one "apps" "" "Get an app from the Appstore" "Add an app (APK file)" "Remove apps")"
+    [[ -n "${what}" ]] || return 0
     connect
     case "${what}" in
         Get*) store_app ;;
@@ -286,10 +288,11 @@ do_apps() {
 # A name from appstore.txt, or any app by its package, ASIN or link.
 store_app() {
     local other="Another app: package, ASIN or amazon.com link" app
-    app="$({ grep -v '^#' appstore.txt | cut -f 1; printf '%s\n' "${other}"; } \
-        | gum filter --header "Get from the Appstore (type to filter)" --placeholder "Netflix")" || return 0
+    local -a names=()
+    while IFS= read -r app; do names+=("${app}"); done < <(grep -v '^#' appstore.txt | cut -f 1)
+    app="$(pick_filtered "Get from the Appstore" "Netflix" "${names[@]}" "${other}")"
     if [[ "${app}" == "${other}" ]]; then
-        app="$(gum input --header "Package, ASIN or amazon.com link" --placeholder "tv.pluto.android")" || return 0
+        app="$(ask_text "Package, ASIN or amazon.com link" "tv.pluto.android")" || return 0
     fi
     [[ -n "${app}" ]] || return 0
     ./apps.sh add "${app}"
@@ -297,7 +300,7 @@ store_app() {
 
 add_app() {
     local apk
-    apk="$(gum input --header "APK file to install" --placeholder "Downloads/app.apk, or drag the file here")" || return 0
+    apk="$(ask_text "APK file to install (a path, or drag the file here)" "Downloads/app.apk")" || return 0
     [[ -n "${apk}" ]] || return 0
     # A dragged file arrives with a trailing space, and may arrive quoted.
     apk="${apk%" "}"; apk="${apk#\'}"; apk="${apk%\'}"
@@ -368,10 +371,12 @@ wait_for_tv() {
                 esac
                 ;;
         esac
-        next="$(gum choose --header "Not connected yet" "Try again" "Change the IP" "Quit")" || exit 0
+        # Esc, or end of input, quits.
+        next="$(choose_one "Not connected yet" "" "Try again" "Change the IP" "Quit")"
         case "${next}" in
+            Try*) ;;
             Change*) ask_host ;;
-            Quit) exit 0 ;;
+            *) exit 0 ;;
         esac
     done
 }
@@ -428,16 +433,18 @@ fi
 menu=()
 for step in "${STEPS[@]}"; do
     IFS=';' read -r name _ what <<< "${step}"
-    menu+=("$(printf '%-11s %s' "${name}" "${what}")|${name}")
+    menu+=("$(printf '%-11s %s' "${name}" "${what}")"$'\t'"${name}")
 done
-menu+=("quit|quit")
+menu+=("quit"$'\t'"quit")
 
 offer_update
 
 while true; do
     _header "Launcher: TV ${TV}"
-    # Quit, or Esc, drops the adb connection.
-    choice="$(gum choose --label-delimiter='|' "${menu[@]}")" || choice=quit
+    # Quit, Esc or end of input drops the adb connection.
+    # No default, so gum's cursor starts on doctor.
+    choice="$(choose_one "Pick a step" "" "${menu[@]}")"
+    choice="${choice:-quit}"
     if [[ "${choice}" == quit ]]; then
         adb disconnect "${TV}" >/dev/null 2>&1 || true
         exit 0

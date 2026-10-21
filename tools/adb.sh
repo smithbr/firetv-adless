@@ -20,14 +20,8 @@ set_tv() {
 # runs need not ask. FIRETV_HOST_ASKED tells the caller it was just typed.
 ask_host() {
     local host="" header="TV IP (Settings > My Fire TV > About > Network)"
-    case "$(prompt_mode)" in
-        gum) host="$(gum input --header "${header}" --placeholder "192.168.1.20" --value "${FIRETV_HOST:-}")" || exit 1 ;;
-        *)
-            [[ -t 0 ]] || die "No TV set up: export FIRETV_HOST=<tv-ip>, or run firetv setup"
-            printf '%s: ' "${header}" >&2
-            IFS= read -r host || true
-            ;;
-    esac
+    [[ -t 0 || "$(prompt_mode)" == gum ]] || die "No TV set up: export FIRETV_HOST=<tv-ip>, or run firetv setup"
+    host="$(ask_text "${header}" "192.168.1.20" "${FIRETV_HOST:-}")" || exit 1
     host="${host//[[:space:]]/}"
     [[ -n "${host}" ]] || die "No TV IP given"
     mkdir -p "$(dirname "${FIRETV_HOST_FILE}")"
