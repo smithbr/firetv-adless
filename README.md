@@ -87,7 +87,7 @@ runs what doctor in the menu runs. `firetv --help` lists them all.
 
 ```bash
 firetv doctor                      # check the connection, launcher, core packages, debloat and storage; changes nothing
-firetv install                     # install or update the launcher, then make it Home
+firetv install                     # install or update the launcher, remove old builds, make it Home
 firetv tune                        # checklist in a terminal, tweak list elsewhere
 firetv tune fast-animations on     # turning one off restores the old values
 firetv clean                       # trim app caches, then remove old launcher builds, asking first
@@ -96,7 +96,7 @@ firetv reboot
 
 Old launcher builds are earlier names and debug or devicetest builds,
 listed in `tools/packages-old-launchers.txt`. Each shows as a blank tile in
-Apps; doctor warns about them.
+Apps; doctor warns about them, and install and clean offer to remove them.
 
 ### Apps
 
