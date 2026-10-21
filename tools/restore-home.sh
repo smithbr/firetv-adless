@@ -3,7 +3,7 @@
 # launcher stays installed; uninstall.sh removes it.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
-source ./tv.sh
+source ./adb.sh
 
 connect
 for pkg in com.amazon.tv.launcher com.amazon.firehomestarter; do

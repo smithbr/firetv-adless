@@ -9,13 +9,17 @@ Any Fire OS 6, 7 or 8 device should work.
 
 ## Install
 
-`tools/menu` runs the steps below from one menu (needs
-[gum](https://github.com/charmbracelet/gum): `brew install gum`).
+Set up this computer first:
+
+```bash
+tools/setup.sh
+```
+
+It installs `adb` and [gum](https://github.com/charmbracelet/gum) with
+Homebrew (on Linux it lists what to install) and links `firetv` into
+`~/.local/bin`. `firetv` then runs the steps below from one menu.
 
 ### Connect to the TV
-
-Install `adb` ([Platform-Tools](https://developer.android.com/tools/releases/platform-tools),
-or `brew install android-platform-tools`, or `sudo apt install adb`).
 
 On the TV, in Settings > My Fire TV > About, press OK on the device name
 seven times to unlock Developer options, then turn on ADB debugging and Apps
@@ -40,14 +44,11 @@ adb install launcher.apk
 open the project, set the build variant to `release` (Build > Select Build
 Variant), pick the TV in the device menu and press Run.
 
-**Or build it in a terminal:** it needs [Temurin](https://adoptium.net)
-17 to 27 and the Android SDK; the build downloads the platform it compiles
-against. On macOS: `brew install --cask temurin android-commandlinetools`,
-then `export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools` and
-`yes | sdkmanager --licenses`. On Linux, get Temurin from Adoptium's
-package repository and Android's command-line tools, set `ANDROID_HOME` to
-the SDK and accept its licenses the same way. Then
-`tools/install.sh --launch`.
+**Or build it in a terminal:** `tools/setup.sh --build` adds
+[Temurin](https://adoptium.net) and the Android SDK, accepts the SDK
+licenses and points the build at the SDK; on Linux, install Temurin 17 to
+27 and Android's command-line tools, set `ANDROID_HOME` to the SDK, and run
+it the same way. Then `tools/install.sh --launch`.
 
 Until it's Home, open it from Your Apps on Amazon's home screen.
 
@@ -76,12 +77,30 @@ to Amazon's home unless you turn them off in Home on Fire.
 
 ### Debloat
 
-Run `tools/menu` and pick **Debloat** to choose which of the ad,
+Run `tools/firetv` and pick **Debloat** to choose which of the ad,
 recommendation and telemetry packages in `tools/packages-disabled.txt` to
 disable.
 
-Amazon's launcher, Settings, the Appstore, OTA updates, sign-in, the
-screensaver and the TV tuner stay enabled.
+The packages the TV needs, listed in `tools/packages-core.txt` (Amazon's
+launcher, Settings, the Appstore, OTA updates, sign-in, the screensaver, the
+TV tuner and a few they depend on), are never disabled.
+
+### Look after the TV
+
+The menu also has **Doctor** (checks the connection, launcher, core
+packages, debloat and storage), **Tweaks** (faster animations, less
+background scanning; turning one off restores the old values), **Clean**
+(trims app caches) and **Reboot**. Each runs without the menu too:
+
+```bash
+firetv doctor
+firetv tweaks                      # list them
+firetv tweak fast-animations on
+firetv clean
+firetv reboot
+```
+
+`firetv --help` lists them all.
 
 ## Themes
 
@@ -129,6 +148,6 @@ tools/uninstall.sh         # remove this launcher from the TV
 tools/restore-debloat.sh   # re-enable every disabled package
 ```
 
-**Reset** in `tools/menu` runs the same steps, asking before each.
+**Reset** in `tools/firetv` runs the same steps, asking before each.
 
 A factory reset (Settings > My Fire TV > Reset) also undoes all of it.

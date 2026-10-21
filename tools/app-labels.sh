@@ -8,7 +8,7 @@
 # have connected; takes no lock.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
-source ./tv.sh
+source ./adb.sh
 
 # Which launcher build to ask; tests point it at the devicetest build.
 LAUNCHER_PKG="${LAUNCHER_PKG:-la.bsmith.launcher}"

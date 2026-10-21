@@ -5,7 +5,7 @@
 # service and open it. Its target app can only be picked on the TV.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
-source ./tv.sh
+source ./adb.sh
 
 LAUNCHER="${LAUNCHER:-la.bsmith.launcher/.MainActivity}"
 HOF="io.github.toolicious.homeonfire"

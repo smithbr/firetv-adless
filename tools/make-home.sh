@@ -4,7 +4,7 @@
 # activity. restore-home.sh undoes all of it.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
-source ./tv.sh
+source ./adb.sh
 
 LAUNCHER="${LAUNCHER:-la.bsmith.launcher/.MainActivity}"
 AMAZON="com.amazon.tv.launcher com.amazon.firehomestarter"

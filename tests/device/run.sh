@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the devicetest variant, installs it beside the launcher, runs every
 # scenario in every theme on the TV, and prints a pass/fail table. Holds the
-# TV lock (tools/tv.sh) throughout. Exits 1 when anything failed.
+# TV lock (tools/adb.sh) throughout. Exits 1 when anything failed.
 #
 #   run.sh [--no-build] [--themes TERMINAL,AMBIENT] [--scenarios navigate,hide] [--baseline]
 #

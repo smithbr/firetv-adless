@@ -49,7 +49,7 @@
             </intent-filter>
         </activity>
 
-        <!-- App names for tools/menu over adb. DUMP: the adb shell holds
+        <!-- App names for tools/firetv over adb. DUMP: the adb shell holds
              it, ordinary apps cannot, so they cannot list installed apps. -->
         <receiver
             android:name=".AppLabelsReceiver"

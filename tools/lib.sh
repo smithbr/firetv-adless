@@ -8,7 +8,8 @@ if [[ -z "${XDG_CONFIG_HOME:-}" && -n "${HOME:-}" ]]; then
     export XDG_CONFIG_HOME="${HOME}/.config"
 fi
 
-# Styling uses the terminal's own 16 ANSI colors, so it follows the theme.
+# Styling uses the terminal's own 16 ANSI colors, so it follows the theme;
+# only the log labels below use gum's fixed 256-color palette.
 # HAS_COLOR and HAS_COLOR_ERR: stdout and stderr are a terminal and NO_COLOR
 # is unset. HAS_GUM: gum is installed and stdout a terminal, for boxes, help,
 # and pickers. Decided when sourced; call again after changing PATH.
@@ -39,11 +40,12 @@ _paint() {
     fi
 }
 
-# Log lines lead with a bold label in its color, as gum log draws its levels:
-# INFO cyan, WARN yellow, ERROR red, and SUCCESS green (_success).
-log_info() { _badge "${HAS_COLOR}" '1;36' INFO "$*"; }
-log_warn() { _badge "${HAS_COLOR_ERR}" '1;33' WARN "$*" >&2; }
-log_error() { _badge "${HAS_COLOR_ERR}" '1;31' ERROR "$*" >&2; }
+# Log lines lead with a bold label in gum log's own 256-color palette, so they
+# match gum's levels: INFO 86, WARN 192, ERROR 204. gum has no success level;
+# SUCCESS (_success) is 84, a green from the same bright family.
+log_info() { _badge "${HAS_COLOR}" '1;38;5;86' INFO "$*"; }
+log_warn() { _badge "${HAS_COLOR_ERR}" '1;38;5;192' WARN "$*" >&2; }
+log_error() { _badge "${HAS_COLOR_ERR}" '1;38;5;204' ERROR "$*" >&2; }
 
 _header() { _paint "${HAS_COLOR}" '1;35' "$1" "$1"; }
 _item() { _paint "${HAS_COLOR}" '2' "  $1" "  $1"; }
@@ -61,8 +63,8 @@ _badge() {
     fi
 }
 
-_success() { _badge "${HAS_COLOR}" '1;32' SUCCESS "$1"; }
-_warn() { _badge "${HAS_COLOR_ERR}" '1;33' WARN "$1" >&2; }
+_success() { _badge "${HAS_COLOR}" '1;38;5;84' SUCCESS "$1"; }
+_warn() { _badge "${HAS_COLOR_ERR}" '1;38;5;192' WARN "$1" >&2; }
 
 # A bordered block. gum style never wraps, so a line wider than the terminal
 # would tear the border; cap the box to the terminal width only when needed.
@@ -83,7 +85,7 @@ _box() {
 }
 
 die() {
-    _badge "${HAS_COLOR_ERR}" '1;31' ERROR "$1" >&2
+    _badge "${HAS_COLOR_ERR}" '1;38;5;204' ERROR "$1" >&2
     exit 1
 }
 

@@ -1,0 +1,22 @@
+# Packages the TV needs: Debloat never disables them and Doctor fails when
+# one is off. Beyond the launcher, settings, store, OTA, sign-in and
+# screensaver: Home starts media.recommendations, most Amazon apps need
+# client.metrics.api, Prime Video needs dp.logger, tcomm and aria are
+# boot-logo suspects, imp and tv.oobe sign in, tv.livetv and tv.channelscan
+# are the tuner.
+com.amazon.tv.launcher
+com.amazon.firehomestarter
+com.amazon.tv.settings.v2
+com.amazon.venezia
+com.amazon.device.software.ota
+com.amazon.identity.auth.device.authorization
+com.amazon.ftv.screensaver
+com.amazon.media.recommendations
+com.amazon.dp.logger
+com.amazon.client.metrics.api
+com.amazon.tcomm
+com.amazon.aria
+com.amazon.imp
+com.amazon.tv.oobe
+com.amazon.tv.livetv
+com.amazon.tv.channelscan

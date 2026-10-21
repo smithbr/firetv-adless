@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# One menu for everything the tools do: connect to the TV, install the launcher,
-# make it Home, debloat, add and remove apps, and reset. Wraps the scripts
-# beside it.
+# One menu for everything the tools do: check the TV, install the launcher,
+# make it Home, debloat, tweak, add and remove apps, clean, reboot, and
+# reset. Wraps the scripts beside it. With a command (firetv doctor), runs
+# that one step without the menu; see firetv --help.
 set -euo pipefail
 # Where the user ran this from, for APK paths they type relative to it.
 START_DIR="${PWD}"
-cd "$(dirname "${BASH_SOURCE[0]}")"
+cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 # shellcheck source=ui.sh
 source ./ui.sh
 
@@ -14,10 +15,60 @@ LAUNCHER_PKG="la.bsmith.launcher"
 HOF="io.github.toolicious.homeonfire"
 HOF_SERVICE="${HOF}/.HijackService"
 
+usage() {
+    show_help <<'EOF'
+# firetv
+
+Set up and look after the Fire TV: with no command, a menu for every step.
+
+## Usage
+
+    firetv [COMMAND [ARGS]]
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `doctor` | Check the connection, launcher, core packages, debloat and storage |
+| `tweaks` | List the tweaks, each on, off or partly on |
+| `tweak NAME on\|off` | Apply a tweak; off puts back the values it replaced |
+| `clean` | Trim app caches and show the storage freed |
+| `reboot` | Restart the TV |
+| `disconnect` | Drop the adb connection |
+
+The TV is `FIRETV_HOST` (IP, or IP:port).
+EOF
+}
+
+# Commands that skip the menu. Each script connects and takes the TV lock.
+case "${1:-}" in
+    "") ;;
+    -h|--help|help) usage; exit 0 ;;
+    doctor) exec ./doctor.sh ;;
+    clean) exec ./clean.sh ;;
+    tweaks) exec ./tweak.sh ;;
+    tweak) shift; exec ./tweak.sh "$@" ;;
+    reboot)
+        # shellcheck source=adb.sh
+        source ./adb.sh
+        connect
+        tv reboot
+        _success "The TV is restarting."
+        exit 0
+        ;;
+    disconnect)
+        # shellcheck source=adb.sh
+        source ./adb.sh
+        adb disconnect "${TV}"
+        exit 0
+        ;;
+    *) die "Unknown command: $1 (see firetv --help)" ;;
+esac
+
 # Interactive only: every step needs a choice or a confirm, and the scripts
 # it wraps cover the non-interactive cases.
 command -v gum >/dev/null 2>&1 || die "gum not found: brew install gum"
-[[ -t 0 && -t 1 ]] || die "tools/menu is interactive; run it in a terminal"
+[[ -t 0 && -t 1 ]] || die "firetv is interactive; run it in a terminal"
 
 if [[ -z "${FIRETV_HOST:-}" ]]; then
     FIRETV_HOST="$(gum input --header "TV IP (Settings > My Fire TV > About > Network)" --placeholder "192.168.1.20")" || exit 1
@@ -25,8 +76,8 @@ if [[ -z "${FIRETV_HOST:-}" ]]; then
     export FIRETV_HOST
     log_info "Tip: export FIRETV_HOST=${FIRETV_HOST} to skip this prompt."
 fi
-# shellcheck source=tv.sh
-source ./tv.sh
+# shellcheck source=adb.sh
+source ./adb.sh
 command -v adb >/dev/null 2>&1 || die "adb not found: brew install --cask android-platform-tools"
 
 # Runs one menu action in a subshell, so die and the TV lock end with the
@@ -41,14 +92,9 @@ run() {
     (( rc == 0 )) || log_warn "Stopped (exit ${rc})"
 }
 
-do_connect() {
-    local model fireos android
-    connect
-    model="$(tv shell getprop ro.product.model | tr -d '\r')"
-    fireos="$(tv shell getprop ro.build.version.name | tr -d '\r')"
-    android="$(tv shell getprop ro.build.version.release | tr -d '\r')"
-    _box "$(printf 'TV:       %s\nModel:    %s\nFire OS:  %s\nAndroid:  %s\nLauncher: %s' \
-        "${TV}" "${model}" "${fireos#Fire OS }" "${android}" "$(state "${LAUNCHER_PKG}")")"
+# Doctor exits 1 when a check failed; its summary already says so.
+do_doctor() {
+    ./doctor.sh || true
 }
 
 # versionName of an installed package, or empty.
@@ -120,6 +166,10 @@ do_debloat() {
             continue
         fi
         pkg="${line}"
+        if grep -qxF "${pkg}" packages-core.txt; then
+            log_warn "${pkg} is a core package (packages-core.txt); never disabled"
+            continue
+        fi
         if ! grep -qxF "package:${pkg}" <<< "${all}"; then
             missing="${missing} ${pkg}"
             continue
@@ -157,6 +207,40 @@ do_debloat() {
     for pkg in ${enable}; do
         tv shell pm enable "${pkg}" | tr -d '\r' | sed "s/^/${pkg}: /"
     done
+}
+
+# Checklist of tweak.sh's tweaks: ticked means on. A ticked tweak not fully
+# on is turned on; an unticked one not fully off is turned off.
+do_tweaks() {
+    local rows name st desc picked on="" change=""
+    local -a opts=()
+    rows="$(spin_out "Reading the TV's settings" ./tweak.sh --tsv)"
+    while IFS=$'\t' read -r name st desc; do
+        opts+=("$(printf '%-18s %-7s %s' "${name}" "${st}" "${desc}")"$'\t'"${name}")
+        [[ "${st}" != on ]] || on="${on} ${name}"
+    done <<< "${rows}"
+    picked="$(choose_many --selected "${on}" "Ticked tweaks get turned on, unticked ones off" "${opts[@]}")" || return 0
+    while IFS=$'\t' read -r name st _; do
+        if grep -qxF "${name}" <<< "${picked}"; then
+            [[ "${st}" == on ]] || change="${change} ${name}:on"
+        else
+            [[ "${st}" == off ]] || change="${change} ${name}:off"
+        fi
+    done <<< "${rows}"
+    if [[ -z "${change}" ]]; then
+        log_info "Nothing to change."
+        return 0
+    fi
+    for name in ${change}; do
+        ./tweak.sh "${name%:*}" "${name#*:}"
+    done
+}
+
+do_reboot() {
+    connect
+    confirm "Restart the TV at ${TV}?" || return 0
+    tv reboot
+    _success "The TV is restarting."
 }
 
 # Sideload an APK, or uninstall apps that were installed (pm list -3).
@@ -251,19 +335,25 @@ do_reset() {
 while true; do
     _header "Launcher: TV ${TV}"
     choice="$(gum choose --label-delimiter='|' \
-        "Connect          check the TV and show its model and Fire OS|connect" \
+        "Doctor           check the TV, launcher, debloat and storage|doctor" \
         "Install          put the launcher on the TV|install" \
         "Make Home        make the launcher the Home app|home" \
         "Debloat          disable Amazon's ad and telemetry apps|debloat" \
+        "Tweaks           faster animations, less background scanning|tweaks" \
         "Add/Remove Apps  install an APK or uninstall apps|apps" \
+        "Clean            trim app caches to free storage|clean" \
+        "Reboot           restart the TV|reboot" \
         "Reset            remove the launcher and restore Amazon's home|reset" \
         "Quit|quit")" || exit 0
     case "${choice}" in
-        connect) run do_connect ;;
+        doctor)  run do_doctor ;;
         install) run do_install ;;
         home)    run do_home ;;
         debloat) run do_debloat ;;
+        tweaks)  run do_tweaks ;;
         apps)    run do_apps ;;
+        clean)   run ./clean.sh ;;
+        reboot)  run do_reboot ;;
         reset)   run do_reset ;;
         quit)    exit 0 ;;
     esac

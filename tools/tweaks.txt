@@ -1,0 +1,8 @@
+# Tweaks: NAME, NAMESPACE, KEY, VALUE when on, DESCRIPTION, tab-separated.
+# Rows with one NAME are one tweak. Only Android's own settings. tweak.sh saves
+# the value each replaces, so turning a tweak off puts it back.
+fast-animations	global	window_animation_scale	0.5	Animations at 0.5x
+fast-animations	global	transition_animation_scale	0.5	Animations at 0.5x
+fast-animations	global	animator_duration_scale	0.5	Animations at 0.5x
+no-wifi-scan	global	wifi_scan_always_enabled	0	No Wi-Fi scanning while Wi-Fi is off or connected
+no-ble-scan	global	ble_scan_always_enabled	0	No background Bluetooth LE scanning
