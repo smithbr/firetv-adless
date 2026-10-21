@@ -4,7 +4,7 @@
 # injection itself costs the TV almost nothing. Prints dumpsys gfxinfo.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
-source ./lib.sh
+source ./tv.sh
 
 LABEL="${1:-bench}"
 SCRIPT="$(mktemp)"

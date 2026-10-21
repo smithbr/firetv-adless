@@ -20,7 +20,7 @@ if [[ -z "${FIRETV_HOST:-}" ]]; then
     printf 'Tip: export FIRETV_HOST=%s to skip this prompt.\n' "${FIRETV_HOST}"
 fi
 # shellcheck source-path=SCRIPTDIR
-source ./lib.sh
+source ./tv.sh
 command -v adb >/dev/null 2>&1 || die "adb not found: brew install --cask android-platform-tools"
 
 _header() { gum style --bold --foreground 212 "$1"; }

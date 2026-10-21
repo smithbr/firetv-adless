@@ -2,7 +2,7 @@
 # Re-enable every package in packages-disabled.txt (undoes the debloat).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
-source ./lib.sh
+source ./tv.sh
 
 connect
 while read -r pkg; do

@@ -3,13 +3,16 @@
 # the TV) and install it. Pass --launch to open it too.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
-source ./lib.sh
+source ./tv.sh
 
 APK="../app/build/outputs/apk/release/app-release.apk"
 
-(cd .. && ./gradlew --console=plain :app:assembleRelease)
+spin "Building the launcher" sh -c 'cd .. && exec ./gradlew --quiet --console=plain :app:assembleRelease'
 connect
-tv install -r "${APK}" | tr -d '\r'
+spin "Installing the launcher on ${TV}" adb -s "${TV}" install -r "${APK}"
 if [[ "${1:-}" == --launch ]]; then
     tv shell am start -n la.bsmith.launcher/.MainActivity >/dev/null
+    _success "Installed the launcher and opened it on the TV."
+else
+    _success "Installed the launcher on the TV."
 fi

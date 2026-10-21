@@ -1,11 +1,11 @@
 # Shared by tests/device: the devicetest app, the UI dump, keys, checks and
-# results. Every function works on the TV named by tools/lib.sh.
+# results. Every function works on the TV named by tools/tv.sh.
 # shellcheck shell=bash
 
 DEVICE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${DEVICE_DIR}/../.." && pwd)"
-# shellcheck source=../../tools/lib.sh
-source "${ROOT}/tools/lib.sh"
+# shellcheck source=../../tools/tv.sh
+source "${ROOT}/tools/tv.sh"
 
 # The throwaway build. Never the installed launcher, la.bsmith.launcher.
 PKG="la.bsmith.launcher.devicetest"
