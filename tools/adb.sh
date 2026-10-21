@@ -119,6 +119,33 @@ connect() {
     [[ "$(tv get-state 2>/dev/null)" == device ]] || die "The TV at ${TV} is not connected and authorized (ADB debugging on? accept the prompt on the TV)"
 }
 
+# Installs the launcher's APK. A launcher on the TV signed with another key
+# (the debug-key releases up to v0.2, or a build from another computer)
+# cannot be updated in place, so it is replaced, asking first: that clears
+# its favorites, hidden apps and theme. When it is Home through
+# make-home.sh, Amazon's home stands in while it is replaced.
+install_launcher() {
+    local apk="$1" out was_home=false tools
+    tools="$(dirname "${BASH_SOURCE[0]}")"
+    # shellcheck disable=SC2016  # $1 and $2 expand in the inner sh
+    out="$(spin_out "Installing the launcher on ${TV}" sh -c 'adb -s "$1" install -r "$2" 2>&1' _ "${TV}" "${apk}")" && return 0
+    if [[ "${out}" != *INSTALL_FAILED_UPDATE_INCOMPATIBLE* ]]; then
+        printf '%s\n' "${out}" >&2
+        die "Could not install the launcher"
+    fi
+    log_warn "The launcher on the TV is signed with a different key (an older release, or a build from another computer), so it cannot be updated in place."
+    confirm "Replace it? Its favorites, hidden apps and theme are cleared." || die "Not installed; the old launcher is still on the TV"
+    if [[ "$(state com.amazon.tv.launcher)" == disabled ]]; then
+        was_home=true
+        "${tools}/restore-home.sh"
+    fi
+    tv uninstall la.bsmith.launcher | tr -d '\r'
+    # shellcheck disable=SC2016  # $1 and $2 expand in the inner sh
+    out="$(spin_out "Installing the launcher on ${TV}" sh -c 'adb -s "$1" install "$2" 2>&1' _ "${TV}" "${apk}")" \
+        || { printf '%s\n' "${out}" >&2; die "Could not install the launcher"; }
+    [[ "${was_home}" == false ]] || "${tools}/make-home.sh"
+}
+
 # "enabled", "disabled", or "absent".
 state() {
     if ! tv shell pm list packages | tr -d '\r' | grep -qx "package:$1"; then printf 'absent'
