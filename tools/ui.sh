@@ -13,6 +13,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 # shellcheck disable=SC2034  # used by the scripts that source this
 REPO="smithbr/firetv-adless"
+# The launcher's package, and Home on Fire's, which hands Home to it.
+# shellcheck disable=SC2034  # used by the scripts that source this
+LAUNCHER_PKG="la.bsmith.launcher"
+# shellcheck disable=SC2034  # used by the scripts that source this
+HOF="io.github.toolicious.homeonfire"
 
 # Like spin, but the command's stdout passes through, for capturing it:
 #   packages="$(spin_out "Reading the TV's packages" adb shell pm list packages)"

@@ -8,10 +8,11 @@
 # have connected; takes no lock.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
-source ./adb.sh
-
 # Which launcher build to ask; tests point it at the devicetest build.
-LAUNCHER_PKG="${LAUNCHER_PKG:-la.bsmith.launcher}"
+# Read before adb.sh, which sets LAUNCHER_PKG to the release.
+labels_from="${LAUNCHER_PKG:-}"
+source ./adb.sh
+LAUNCHER_PKG="${labels_from:-${LAUNCHER_PKG}}"
 
 # "package<tab>name" lines from the launcher, or nothing. am prints the receiver's
 # answer as: Broadcast completed: result=0, data="<lines>"

@@ -8,8 +8,6 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 source ./adb.sh
 
-HOF="io.github.toolicious.homeonfire"
-
 mode=ask
 case "${1:-}" in
     "") ;;

@@ -7,7 +7,6 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 source ./adb.sh
 
-LAUNCHER_PKG="la.bsmith.launcher"
 # Warn below this much free storage, in KB.
 LOW_STORAGE_KB=1048576
 
@@ -90,7 +89,7 @@ check_launcher() {
         | tr -d '\r' | sed -n 's/^ *packageName=//p' | head -1)"
     if [[ "${home}" == "${LAUNCHER_PKG}" ]]; then
         result PASS "Launcher is Home"
-    elif grep -qxF "package:io.github.toolicious.homeonfire" <<< "${installed}"; then
+    elif grep -qxF "package:${HOF}" <<< "${installed}"; then
         result PASS "Home on Fire installed (opens the launcher from Amazon's Home)"
     else
         result WARN "Launcher is not Home"

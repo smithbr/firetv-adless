@@ -11,8 +11,6 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 source ./adb.sh
 
-LAUNCHER_PKG="la.bsmith.launcher"
-HOF="io.github.toolicious.homeonfire"
 STORE="com.amazon.venezia"
 INSTALL_WAIT="${FIRETV_INSTALL_WAIT:-600}"
 UI_XML="/data/local/tmp/firetv-ui.xml"

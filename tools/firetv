@@ -10,8 +10,6 @@ cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 # shellcheck source=ui.sh
 source ./ui.sh
 
-LAUNCHER_PKG="la.bsmith.launcher"
-HOF="io.github.toolicious.homeonfire"
 HOF_SERVICE="${HOF}/.HijackService"
 
 # The steps, in menu order, as "NAME;ARGS;WHAT IT DOES". firetv NAME runs

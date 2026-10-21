@@ -8,7 +8,6 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ./adb.sh
 
 LAUNCHER="${LAUNCHER:-la.bsmith.launcher/.MainActivity}"
-HOF="io.github.toolicious.homeonfire"
 SERVICE="${HOF}/.HijackService"
 # Pinned: a new release means a new version and checksum here.
 HOF_VERSION="v1.5.2"
