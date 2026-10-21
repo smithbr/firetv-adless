@@ -39,11 +39,15 @@ fun shortCode(label: String): String = when (label) {
     "Preferences" -> "PRF"
     "My Account" -> "ACC"
     "Device & Software" -> "DEV"
+    "Home on Fire" -> "HOF"
     "Appstore" -> "STR"
     "Hidden apps" -> "HID"
     "Theme" -> "THM"
     else -> label.split(' ', '&', ':').filter { it.isNotBlank() && it.first().isLetter() }.take(3).joinToString("") { it.first().uppercase() }
 }
+
+/** The Home on Fire package, which hands the Home button to this launcher. */
+private const val HOME_ON_FIRE = "io.github.toolicious.homeonfire"
 
 class AppRepository(private val context: Context) {
     private val pm: PackageManager = context.packageManager
@@ -63,6 +67,8 @@ class AppRepository(private val context: Context) {
             if (!system) byPackage.putIfAbsent(info.activityInfo.packageName, info)
         }
         byPackage.remove(context.packageName)
+        // Listed with the settings entries instead.
+        byPackage.remove(HOME_ON_FIRE)
         return byPackage.values.map(::toEntry).sortedBy { it.label.lowercase() }
     }
 
@@ -125,6 +131,11 @@ class AppRepository(private val context: Context) {
             val intent = Intent().setComponent(ComponentName(settings, settings + activity))
             if (startable(intent)) entries += SystemEntry(label, intent)
         }
+        // Home on Fire (tools/home-on-fire.sh) is set up once, not watched,
+        // so it sits with the settings rather than among the apps.
+        val homeOnFire = pm.getLeanbackLaunchIntentForPackage(HOME_ON_FIRE)
+            ?: pm.getLaunchIntentForPackage(HOME_ON_FIRE)
+        if (homeOnFire != null) entries += SystemEntry("Home on Fire", homeOnFire)
         // The Appstore's home, resolved at runtime: its featured-page action
         // first (its launcher activity is the apps grid, which hands over to
         // Amazon's home screen), then whatever launch intent the package
