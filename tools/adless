@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# One menu for everything the tools do: connect to the TV, install Adless,
+# make it Home, debloat, and undo. Wraps the scripts beside it.
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+REPO="smithbr/firetv-adless"
+ADLESS="la.bsmith.adless"
+HOF="io.github.toolicious.homeonfire"
+
+# Interactive only: every step needs a choice or a confirm, and the scripts
+# it wraps cover the non-interactive cases.
+command -v gum >/dev/null 2>&1 || { printf 'error: gum not found: brew install gum\n' >&2; exit 1; }
+[[ -t 0 && -t 1 ]] || { printf 'error: tools/adless is interactive; run it in a terminal\n' >&2; exit 1; }
+
+if [[ -z "${FIRETV_HOST:-}" ]]; then
+    FIRETV_HOST="$(gum input --header "TV IP (Settings > My Fire TV > About > Network)" --placeholder "192.168.1.20")" || exit 1
+    [[ -n "${FIRETV_HOST}" ]] || { printf 'error: no TV IP given\n' >&2; exit 1; }
+    export FIRETV_HOST
+    printf 'Tip: export FIRETV_HOST=%s to skip this prompt.\n' "${FIRETV_HOST}"
+fi
+# shellcheck source-path=SCRIPTDIR
+source ./lib.sh
+command -v adb >/dev/null 2>&1 || die "adb not found: brew install --cask android-platform-tools"
+
+_header() { gum style --bold --foreground 212 "$1"; }
+_warn() { gum log --level warn "$1" >&2; }
+
+# Runs one menu action in a subshell, so die and the TV lock end with the
+# action and the menu carries on. Not "( ... ) || warn": bash ignores set -e
+# inside an || list.
+run() {
+    local rc
+    set +e
+    ( set -e; "$@" )
+    rc=$?
+    set -e
+    (( rc == 0 )) || _warn "Stopped (exit ${rc})"
+}
+
+do_connect() {
+    local model fireos android
+    connect
+    model="$(tv shell getprop ro.product.model | tr -d '\r')"
+    fireos="$(tv shell getprop ro.build.version.name | tr -d '\r')"
+    android="$(tv shell getprop ro.build.version.release | tr -d '\r')"
+    printf 'TV:      %s\nModel:   %s\nFire OS: %s\nAndroid: %s\nAdless:  %s\n' \
+        "${TV}" "${model}" "${fireos#Fire OS }" "${android}" "$(state "${ADLESS}")" \
+        | gum style --border rounded --border-foreground 240 --padding "0 1"
+}
+
+do_install() {
+    local how
+    how="$(gum choose --header "Install Adless" "Download the latest release" "Build it here (tools/install.sh)")" || return 0
+    if [[ "${how}" == Build* ]]; then
+        ./install.sh --launch
+        return
+    fi
+    connect
+    # Not local: the EXIT trap runs after this function has returned.
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "${tmp}"; unlock' EXIT
+    # gh reaches the release while the repo is private; curl once it is public.
+    if ! { command -v gh >/dev/null 2>&1 \
+            && gum spin --show-error --title "Downloading adless.apk" -- \
+                gh release download --repo "${REPO}" --pattern adless.apk --dir "${tmp}"; } \
+        && ! gum spin --show-error --title "Downloading adless.apk" -- \
+            curl -fsSL -o "${tmp}/adless.apk" "https://github.com/${REPO}/releases/latest/download/adless.apk"; then
+        die "Could not download adless.apk from https://github.com/${REPO}/releases/latest"
+    fi
+    gum spin --show-error --title "Installing on ${TV}" -- adb -s "${TV}" install -r "${tmp}/adless.apk"
+    tv shell am start -n "${ADLESS}/.MainActivity" >/dev/null
+    printf 'Adless installed and opened on the TV.\n'
+}
+
+do_home() {
+    ./make-home.sh
+}
+
+# Checklist of packages-disabled.txt: ticked means disabled. Ticked packages
+# that are enabled get disabled, unticked ones that are disabled get enabled.
+do_debloat() {
+    local all off line pkg group="" st picked disable="" enable="" missing=""
+    local -a opts=()
+    connect
+    # Two adb calls for the whole list; state() would take two per package.
+    all="$(tv shell pm list packages | tr -d '\r')"
+    off="$(tv shell pm list packages -d | tr -d '\r')"
+    while read -r line; do
+        [[ -n "${line}" ]] || continue
+        if [[ "${line}" == \#* ]]; then
+            group="${line#\# }"
+            continue
+        fi
+        pkg="${line}"
+        if ! grep -qxF "package:${pkg}" <<< "${all}"; then
+            missing="${missing} ${pkg}"
+            continue
+        fi
+        st=enabled
+        grep -qxF "package:${pkg}" <<< "${off}" && st=disabled
+        opts+=("$(printf '%-38s %-10s %s' "${pkg}" "${group}" "${st}")|${pkg} ${st}")
+    done < packages-disabled.txt
+    [[ -z "${missing}" ]] || printf 'Not on this TV:%s\n' "${missing}"
+    (( ${#opts[@]} > 0 )) || die "None of packages-disabled.txt is on this TV"
+
+    picked="$(gum choose --no-limit --selected='*' --label-delimiter='|' --height=20 \
+        --header "Ticked packages get disabled, unticked ones enabled" "${opts[@]}")" || return 0
+    for line in "${opts[@]}"; do
+        read -r pkg st <<< "${line#*|}"
+        if grep -qxF "${pkg} ${st}" <<< "${picked}"; then
+            [[ "${st}" == enabled ]] && disable="${disable} ${pkg}"
+        else
+            [[ "${st}" == disabled ]] && enable="${enable} ${pkg}"
+        fi
+    done
+    if [[ -z "${disable}${enable}" ]]; then
+        printf 'Nothing to change.\n'
+        return 0
+    fi
+    {
+        for pkg in ${disable}; do printf 'disable  %s\n' "${pkg}"; done
+        for pkg in ${enable}; do printf 'enable   %s\n' "${pkg}"; done
+    } | gum style --border rounded --border-foreground 240 --padding "0 1"
+    gum confirm "Apply these changes on ${TV}?" || return 0
+    for pkg in ${disable}; do
+        tv shell pm disable-user --user 0 "${pkg}" | tr -d '\r' | sed "s/^/${pkg}: /"
+    done
+    for pkg in ${enable}; do
+        tv shell pm enable "${pkg}" | tr -d '\r' | sed "s/^/${pkg}: /"
+    done
+}
+
+# The README's undo steps, in its order. A step that fails stops the rest:
+# uninstall.sh refuses while Amazon's launcher is disabled.
+do_undo() {
+    connect
+    if [[ "$(state "${HOF}")" == absent ]]; then
+        printf 'Home on Fire: not installed\n'
+    elif gum confirm "Uninstall Home on Fire?"; then
+        tv uninstall "${HOF}" | tr -d '\r'
+    fi
+    if gum confirm "Put Amazon's launcher back as Home (restore-home.sh)?"; then
+        ./restore-home.sh
+    fi
+    if [[ "$(state "${ADLESS}")" == absent ]]; then
+        printf 'Adless: not installed\n'
+    elif gum confirm "Uninstall Adless (uninstall.sh)?"; then
+        ./uninstall.sh
+    fi
+    if gum confirm "Re-enable every debloated package (restore-debloat.sh)?"; then
+        ./restore-debloat.sh
+    fi
+}
+
+while true; do
+    _header "Adless: TV ${TV}"
+    choice="$(gum choose --label-delimiter='|' \
+        "Connect      check the TV and show its model and Fire OS|connect" \
+        "Install      put Adless on the TV|install" \
+        "Make Home    make Adless the Home app|home" \
+        "Debloat      disable Amazon's ad and telemetry apps|debloat" \
+        "Undo         remove Adless and restore Amazon's home|undo" \
+        "Quit|quit")" || exit 0
+    case "${choice}" in
+        connect) run do_connect ;;
+        install) run do_install ;;
+        home)    run do_home ;;
+        debloat) run do_debloat ;;
+        undo)    run do_undo ;;
+        quit)    exit 0 ;;
+    esac
+    printf '\n'
+done

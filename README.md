@@ -9,6 +9,9 @@ Any Fire OS 6, 7 or 8 device should work.
 
 ## Install
 
+`tools/adless` runs the steps below from one menu (needs
+[gum](https://github.com/charmbracelet/gum): `brew install gum`).
+
 ### Connect to the TV
 
 Install `adb` ([Platform-Tools](https://developer.android.com/tools/releases/platform-tools),
@@ -73,12 +76,9 @@ to Amazon's home unless you turn them off in Home on Fire.
 
 ### Debloat
 
-Disable the ad, recommendation and telemetry packages in
-`tools/packages-disabled.txt`:
-
-```bash
-grep -v '^#' tools/packages-disabled.txt | grep . | xargs -n1 adb -s "$FIRETV_HOST" shell pm disable-user --user 0
-```
+Run `tools/adless` and pick **Debloat** to choose which of the ad,
+recommendation and telemetry packages in `tools/packages-disabled.txt` to
+disable.
 
 Amazon's launcher, Settings, the Appstore, OTA updates, sign-in, the
 screensaver and the TV tuner stay enabled.
@@ -128,5 +128,7 @@ tools/restore-home.sh      # if make-home.sh was run: Amazon's launcher back as 
 tools/uninstall.sh         # remove this launcher from the TV
 tools/restore-debloat.sh   # re-enable every disabled package
 ```
+
+**Undo** in `tools/adless` runs the same steps, asking before each.
 
 A factory reset (Settings > My Fire TV > Reset) also undoes all of it.
