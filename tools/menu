@@ -1,0 +1,271 @@
+#!/usr/bin/env bash
+# One menu for everything the tools do: connect to the TV, install the launcher,
+# make it Home, debloat, add and remove apps, and reset. Wraps the scripts
+# beside it.
+set -euo pipefail
+# Where the user ran this from, for APK paths they type relative to it.
+START_DIR="${PWD}"
+cd "$(dirname "${BASH_SOURCE[0]}")"
+# shellcheck source=ui.sh
+source ./ui.sh
+
+REPO="smithbr/firetv-adless"
+LAUNCHER_PKG="la.bsmith.launcher"
+HOF="io.github.toolicious.homeonfire"
+HOF_SERVICE="${HOF}/.HijackService"
+
+# Interactive only: every step needs a choice or a confirm, and the scripts
+# it wraps cover the non-interactive cases.
+command -v gum >/dev/null 2>&1 || die "gum not found: brew install gum"
+[[ -t 0 && -t 1 ]] || die "tools/menu is interactive; run it in a terminal"
+
+if [[ -z "${FIRETV_HOST:-}" ]]; then
+    FIRETV_HOST="$(gum input --header "TV IP (Settings > My Fire TV > About > Network)" --placeholder "192.168.1.20")" || exit 1
+    [[ -n "${FIRETV_HOST}" ]] || die "No TV IP given"
+    export FIRETV_HOST
+    log_info "Tip: export FIRETV_HOST=${FIRETV_HOST} to skip this prompt."
+fi
+# shellcheck source=tv.sh
+source ./tv.sh
+command -v adb >/dev/null 2>&1 || die "adb not found: brew install --cask android-platform-tools"
+
+# Runs one menu action in a subshell, so die and the TV lock end with the
+# action and the menu carries on. Not "( ... ) || warn": bash ignores set -e
+# inside an || list.
+run() {
+    local rc
+    set +e
+    ( set -e; "$@" )
+    rc=$?
+    set -e
+    (( rc == 0 )) || log_warn "Stopped (exit ${rc})"
+}
+
+do_connect() {
+    local model fireos android
+    connect
+    model="$(tv shell getprop ro.product.model | tr -d '\r')"
+    fireos="$(tv shell getprop ro.build.version.name | tr -d '\r')"
+    android="$(tv shell getprop ro.build.version.release | tr -d '\r')"
+    _box "$(printf 'TV:       %s\nModel:    %s\nFire OS:  %s\nAndroid:  %s\nLauncher: %s' \
+        "${TV}" "${model}" "${fireos#Fire OS }" "${android}" "$(state "${LAUNCHER_PKG}")")"
+}
+
+# versionName of an installed package, or empty.
+version() {
+    tv shell dumpsys package "$1" | tr -d '\r' | sed -n 's/^ *versionName=//p' | head -1
+}
+
+do_install() {
+    local how
+    connect
+    if [[ "$(state "${LAUNCHER_PKG}")" != absent ]]; then
+        confirm "The launcher $(version "${LAUNCHER_PKG}") is already installed. Reinstall or update it?" || return 0
+    fi
+    how="$(gum choose --header "Install the launcher" "Download the latest release" "Build it here (tools/install.sh)")" || return 0
+    if [[ "${how}" == Build* ]]; then
+        ./install.sh --launch
+        return
+    fi
+    # Not local: the EXIT trap runs after this function has returned.
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "${tmp}"; unlock' EXIT
+    # gh reaches the release while the repo is private; curl once it is public.
+    # One spinner for both, so a failed gh is not reported when curl works.
+    # shellcheck disable=SC2016  # $1 and $2 expand in the inner sh
+    spin "Downloading launcher.apk" sh -c '
+        { command -v gh >/dev/null 2>&1 && gh release download --repo "$1" --pattern launcher.apk --dir "$2"; } \
+            || curl -fsSL -o "$2/launcher.apk" "https://github.com/$1/releases/latest/download/launcher.apk"' _ "${REPO}" "${tmp}" \
+        || die "Could not download launcher.apk from https://github.com/${REPO}/releases/latest"
+    spin "Installing the launcher on ${TV}" adb -s "${TV}" install -r "${tmp}/launcher.apk"
+    tv shell am start -n "${LAUNCHER_PKG}/.MainActivity" >/dev/null
+    _success "Installed the launcher and opened it on the TV."
+}
+
+# Package the Home intent resolves to; android's resolver when no default.
+home_package() {
+    tv shell cmd package resolve-activity -a android.intent.action.MAIN -c android.intent.category.HOME \
+        | tr -d '\r' | sed -n 's/^ *packageName=//p' | head -1
+}
+
+do_home() {
+    connect
+    [[ "$(state "${LAUNCHER_PKG}")" != absent ]] || die "The launcher is not installed; pick Install first"
+    if [[ "$(home_package)" == "${LAUNCHER_PKG}" ]]; then
+        _success "The launcher is already the Home app."
+        return 0
+    fi
+    # Fire OS 8.1.6.9 and later: Home stays Amazon's, Home on Fire opens the launcher.
+    if [[ "$(state "${HOF}")" != absent ]] \
+        && [[ ":$(tv shell settings get secure enabled_accessibility_services | tr -d '\r'):" == *":${HOF_SERVICE}:"* ]]; then
+        log_info "Home on Fire is installed and on, so Home already opens its target app (picked on the TV)."
+        confirm "Run the Home setup again?" || return 0
+    fi
+    ./make-home.sh
+}
+
+# Checklist of packages-disabled.txt: ticked means disabled. Ticked packages
+# that are enabled get disabled, unticked ones that are disabled get enabled.
+do_debloat() {
+    local all off line pkg group="" st picked listed="" disable="" enable="" missing=""
+    local -a opts=()
+    connect
+    # Two adb calls for the whole list; state() would take two per package.
+    all="$(spin_out "Reading the TV's packages" adb -s "${TV}" shell pm list packages | tr -d '\r')"
+    off="$(tv shell pm list packages -d | tr -d '\r')"
+    while read -r line; do
+        [[ -n "${line}" ]] || continue
+        if [[ "${line}" == \#* ]]; then
+            group="${line#\# }"
+            continue
+        fi
+        pkg="${line}"
+        if ! grep -qxF "package:${pkg}" <<< "${all}"; then
+            missing="${missing} ${pkg}"
+            continue
+        fi
+        st=enabled
+        grep -qxF "package:${pkg}" <<< "${off}" && st=disabled
+        opts+=("$(printf '%-38s %-10s %s' "${pkg}" "${group}" "${st}")"$'\t'"${pkg}")
+        listed="${listed} ${pkg}"
+    done < packages-disabled.txt
+    [[ -z "${missing}" ]] || log_info "Not on this TV:${missing}"
+    (( ${#opts[@]} > 0 )) || die "None of packages-disabled.txt is on this TV"
+
+    picked="$(choose_many --selected "${listed}" "Ticked packages get disabled, unticked ones enabled" "${opts[@]}")" || return 0
+    for pkg in ${listed}; do
+        st=enabled
+        grep -qxF "package:${pkg}" <<< "${off}" && st=disabled
+        if grep -qxF "${pkg}" <<< "${picked}"; then
+            [[ "${st}" == enabled ]] && disable="${disable} ${pkg}"
+        else
+            [[ "${st}" == disabled ]] && enable="${enable} ${pkg}"
+        fi
+    done
+    if [[ -z "${disable}${enable}" ]]; then
+        log_info "Nothing to change."
+        return 0
+    fi
+    _box "$(
+        for pkg in ${disable}; do printf 'disable  %s\n' "${pkg}"; done
+        for pkg in ${enable}; do printf 'enable   %s\n' "${pkg}"; done
+    )"
+    confirm "Apply these changes on ${TV}?" || return 0
+    for pkg in ${disable}; do
+        tv shell pm disable-user --user 0 "${pkg}" | tr -d '\r' | sed "s/^/${pkg}: /"
+    done
+    for pkg in ${enable}; do
+        tv shell pm enable "${pkg}" | tr -d '\r' | sed "s/^/${pkg}: /"
+    done
+}
+
+# Sideload an APK, or uninstall apps that were installed (pm list -3).
+# The launcher and Home on Fire are left to Reset, which removes them in order.
+do_apps() {
+    local what
+    what="$(gum choose --header "Add/Remove Apps" "Add an app (APK file)" "Remove apps")" || return 0
+    connect
+    if [[ "${what}" == Add* ]]; then
+        add_app
+    else
+        remove_apps
+    fi
+}
+
+add_app() {
+    local apk
+    apk="$(gum input --header "APK file to install" --placeholder "Downloads/app.apk, or drag the file here")" || return 0
+    [[ -n "${apk}" ]] || return 0
+    # A dragged file arrives with a trailing space, and may arrive quoted.
+    apk="${apk%" "}"; apk="${apk#\'}"; apk="${apk%\'}"
+    # shellcheck disable=SC2088  # matching a literal ~ the user typed
+    [[ "${apk}" != "~/"* ]] || apk="${HOME}/${apk:2}"
+    [[ "${apk}" == /* ]] || apk="${START_DIR}/${apk}"
+    [[ -f "${apk}" ]] || die "No such file: ${apk}"
+    [[ "${apk}" == *.apk ]] || die "Not an .apk file: ${apk}"
+    spin "Installing $(basename "${apk}") on ${TV}" adb -s "${TV}" install -r "${apk}"
+    _success "Installed $(basename "${apk}")."
+}
+
+# Installed (pm list -3) and with a launcher icon, TV or phone (Tubi has
+# only the phone one), which leaves out Amazon's overlay packages.
+remove_apps() {
+    local installed launchable="" names picked pkg name category out
+    local -a pkgs=() opts=()
+    installed="$(spin_out "Reading the TV's apps" adb -s "${TV}" shell pm list packages -3 | tr -d '\r')"
+    for category in LEANBACK_LAUNCHER LAUNCHER; do
+        launchable+="$(tv shell cmd package query-activities --brief \
+            -a android.intent.action.MAIN -c "android.intent.category.${category}" \
+            | tr -d '\r' | sed -n 's|^ *\([^ /]*\)/.*|\1|p')"$'\n'
+    done
+    launchable="$(sort -u <<< "${launchable}")"
+    while read -r pkg; do
+        [[ -n "${pkg}" && "${pkg}" != "${LAUNCHER_PKG}" && "${pkg}" != "${HOF}" ]] || continue
+        grep -qxF "package:${pkg}" <<< "${installed}" && pkgs+=("${pkg}")
+    done <<< "${launchable}"
+    (( ${#pkgs[@]} > 0 )) || { log_info "No installed apps to remove."; return 0; }
+    # "package<tab>name", sorted by name.
+    names="$(spin_out "Reading app names" ./app-labels.sh "${pkgs[@]}" | sort -t $'\t' -k 2 -f)"
+    while IFS=$'\t' read -r pkg name; do
+        opts+=("$(printf '%-24s %s' "${name}" "${pkg}")"$'\t'"${pkg}")
+    done <<< "${names}"
+    picked="$(choose_many "Ticked apps get uninstalled (the launcher and Home on Fire: use Reset)" "${opts[@]}")" || return 0
+    [[ -n "${picked}" ]] || { log_info "Nothing to remove."; return 0; }
+    _box "$(while read -r pkg; do
+        awk -F '\t' -v p="${pkg}" '$1 == p { print $2 }' <<< "${names}"
+    done <<< "${picked}")"
+    confirm "Uninstall these from ${TV}? Their data goes too." || return 0
+    while read -r pkg; do
+        name="$(awk -F '\t' -v p="${pkg}" '$1 == p { print $2 }' <<< "${names}")"
+        out="$(tv uninstall "${pkg}" 2>&1 | tr -d '\r' || true)"
+        if [[ "${out}" == Success ]]; then
+            _success "Uninstalled ${name}."
+        else
+            log_warn "${name}: ${out}"
+        fi
+    done <<< "${picked}"
+}
+
+# The README's reset steps, in its order. A step that fails stops the rest:
+# uninstall.sh refuses while Amazon's launcher is disabled.
+do_reset() {
+    connect
+    if [[ "$(state "${HOF}")" == absent ]]; then
+        log_info "Home on Fire: not installed"
+    elif confirm "Uninstall Home on Fire?"; then
+        tv uninstall "${HOF}" | tr -d '\r'
+    fi
+    if confirm "Put Amazon's launcher back as Home (restore-home.sh)?"; then
+        ./restore-home.sh
+    fi
+    if [[ "$(state "${LAUNCHER_PKG}")" == absent ]]; then
+        log_info "Launcher: not installed"
+    elif confirm "Uninstall the launcher (uninstall.sh)?"; then
+        ./uninstall.sh
+    fi
+    if confirm "Re-enable every debloated package (restore-debloat.sh)?"; then
+        ./restore-debloat.sh
+    fi
+}
+
+while true; do
+    _header "Launcher: TV ${TV}"
+    choice="$(gum choose --label-delimiter='|' \
+        "Connect          check the TV and show its model and Fire OS|connect" \
+        "Install          put the launcher on the TV|install" \
+        "Make Home        make the launcher the Home app|home" \
+        "Debloat          disable Amazon's ad and telemetry apps|debloat" \
+        "Add/Remove Apps  install an APK or uninstall apps|apps" \
+        "Reset            remove the launcher and restore Amazon's home|reset" \
+        "Quit|quit")" || exit 0
+    case "${choice}" in
+        connect) run do_connect ;;
+        install) run do_install ;;
+        home)    run do_home ;;
+        debloat) run do_debloat ;;
+        apps)    run do_apps ;;
+        reset)   run do_reset ;;
+        quit)    exit 0 ;;
+    esac
+    printf '\n'
+done

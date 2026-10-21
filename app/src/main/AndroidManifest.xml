@@ -48,5 +48,12 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- App names for tools/menu over adb. DUMP: the adb shell holds
+             it, ordinary apps cannot, so they cannot list installed apps. -->
+        <receiver
+            android:name=".AppLabelsReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
     </application>
 </manifest>

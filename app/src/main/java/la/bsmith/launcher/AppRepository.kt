@@ -66,6 +66,18 @@ class AppRepository(private val context: Context) {
         return byPackage.values.map(::toEntry).sortedBy { it.label.lowercase() }
     }
 
+    /**
+     * Package to name for every app with a TV or phone launcher entry, the TV
+     * one's name first. No icons, so it is quick enough for a broadcast.
+     */
+    fun labels(): Map<String, String> {
+        val labels = LinkedHashMap<String, String>()
+        for (info in query(Intent.CATEGORY_LEANBACK_LAUNCHER) + query(Intent.CATEGORY_LAUNCHER)) {
+            labels.getOrPut(info.activityInfo.packageName) { info.loadLabel(pm).toString() }
+        }
+        return labels
+    }
+
     private fun query(category: String): List<ResolveInfo> =
         pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(category), 0)
 
