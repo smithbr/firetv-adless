@@ -1,6 +1,6 @@
-# Apps `firetv add` knows by name: the name, a tab, then the Fire TV
+# Apps `firetv apps add` knows by name: the name, a tab, then the Fire TV
 # package. Each opened on the Appstore here, or came from it on the test TV.
-# Anything else: give `firetv add` its package, ASIN or amazon.com link.
+# Anything else: give `firetv apps add` its package, ASIN or amazon.com link.
 Apple TV	com.apple.atve.amazon.appletv
 Crunchyroll	com.crunchyroll.crunchyroid
 discovery+	com.discovery.discoveryplus.firetv
