@@ -98,6 +98,74 @@ version() {
     tv shell dumpsys package "$1" | tr -d '\r' | sed -n 's/^ *versionName=//p' | head -1
 }
 
+# The latest release's version (0.3), or nothing when GitHub cannot be
+# reached. gh reaches a private repo; once it is public, the latest-release
+# page's redirect names the tag.
+latest_version() {
+    local tag=""
+    if command -v gh >/dev/null 2>&1; then
+        tag="$(gh release view --repo "${REPO}" --json tagName --jq .tagName 2>/dev/null || true)"
+    fi
+    if [[ -z "${tag}" ]]; then
+        tag="$(curl -fsSI --max-time 5 "https://github.com/${REPO}/releases/latest" 2>/dev/null \
+            | tr -d '\r' | sed -n 's|^[Ll]ocation: .*/releases/tag/||p' | head -1 || true)"
+    fi
+    printf '%s\n' "${tag#v}"
+}
+
+# True when version $1 is older than $2 (0.9 is older than 0.10).
+older() {
+    [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" == "$1" ]]
+}
+
+# Reads the TV's launcher against the latest release: INSTALLED (empty when
+# not installed), LATEST (empty when GitHub cannot be reached), and OLD_KEY,
+# true when it was signed with a key other than the release key.
+read_launcher() {
+    INSTALLED="$(version "${LAUNCHER_PKG}")"
+    LATEST="$(latest_version)"
+    OLD_KEY=false
+    if [[ -n "${INSTALLED}" && ",$(launcher_signature)," != *",${LAUNCHER_SIGNATURE},"* ]]; then
+        OLD_KEY=true
+    fi
+}
+
+# Says what replacing an old-key launcher costs, then asks before installing
+# over the TV's launcher, naming the versions.
+confirm_install() {
+    [[ "${OLD_KEY}" == false ]] \
+        || log_warn "The TV's launcher is signed with an old key, so installing replaces it: its favorites, hidden apps and theme are cleared."
+    if [[ -n "${LATEST}" ]] && older "${INSTALLED}" "${LATEST}"; then
+        confirm "Update the launcher from ${INSTALLED} to ${LATEST}?"
+    elif [[ "${INSTALLED}" == "${LATEST}" ]]; then
+        confirm "The launcher ${INSTALLED} is installed, the latest. Reinstall it?"
+    else
+        confirm "The launcher ${INSTALLED} is installed. Reinstall or update it?"
+    fi
+}
+
+# On opening the menu: says when a newer release is out and offers to
+# install it. Quiet when the TV or GitHub cannot be reached or the launcher
+# is not installed; the menu works without them.
+offer_update() {
+    adb_connect >/dev/null
+    [[ "$(tv get-state 2>/dev/null)" == device ]] || return 0
+    read_launcher
+    if [[ -z "${INSTALLED}" || -z "${LATEST}" ]] || ! older "${INSTALLED}" "${LATEST}"; then
+        return 0
+    fi
+    if [[ "${OLD_KEY}" == true ]]; then
+        _box "Launcher ${LATEST} is out; the TV has ${INSTALLED}.
+The TV's launcher is signed with an old key, so updating replaces it:
+its favorites, hidden apps and theme are cleared."
+    else
+        _box "Launcher ${LATEST} is out; the TV has ${INSTALLED}."
+    fi
+    confirm "Install ${LATEST} now?" || return 0
+    run do_install --confirmed
+    printf '\n'
+}
+
 # True when this computer can build the launcher: setup.sh --build pointed
 # the build at an Android SDK, or ANDROID_HOME names one.
 can_build() {
@@ -105,14 +173,20 @@ can_build() {
 }
 
 # Downloads the latest release; on a computer that can build, building here
-# is offered too.
+# is offered too. --confirmed is offer_update's: the user agreed to that
+# release, so it downloads it without asking again.
 do_install() {
-    local how=Download
+    local how=Download confirmed=false
+    local -a replace=()
+    [[ "${1:-}" != --confirmed ]] || confirmed=true
     connect
-    if [[ "$(state "${LAUNCHER_PKG}")" != absent ]]; then
-        confirm "The launcher $(version "${LAUNCHER_PKG}") is already installed. Reinstall or update it?" || return 0
+    read_launcher
+    if [[ -n "${INSTALLED}" && "${confirmed}" == false ]]; then
+        confirm_install || return 0
     fi
-    if can_build; then
+    # The user has agreed to the replacing; install_launcher need not ask.
+    [[ "${OLD_KEY}" == false ]] || replace=(--replace)
+    if [[ "${confirmed}" == false ]] && can_build; then
         how="$(gum choose --header "Install the launcher" "Download the latest release" "Build it here (tools/install.sh)")" || return 0
     fi
     if [[ "${how}" == Build* ]]; then
@@ -129,7 +203,7 @@ do_install() {
         { command -v gh >/dev/null 2>&1 && gh release download --repo "$1" --pattern launcher.apk --dir "$2"; } \
             || curl -fsSL -o "$2/launcher.apk" "https://github.com/$1/releases/latest/download/launcher.apk"' _ "${REPO}" "${tmp}" \
         || die "Could not download launcher.apk from https://github.com/${REPO}/releases/latest. While the repo is private, run tools/setup.sh to sign in to GitHub."
-    install_launcher "${tmp}/launcher.apk"
+    install_launcher ${replace[@]+"${replace[@]}"} "${tmp}/launcher.apk"
     tv shell am start -n "${LAUNCHER_PKG}/.MainActivity" >/dev/null
     _success "Installed the launcher and opened it on the TV."
 }
@@ -480,6 +554,9 @@ for step in "${STEPS[@]}"; do
     menu+=("$(printf '%-11s %s' "${name}" "${what}")|${name}")
 done
 menu+=("quit|quit")
+
+offer_update
+
 while true; do
     _header "Launcher: TV ${TV}"
     choice="$(gum choose --label-delimiter='|' "${menu[@]}")" || exit 0

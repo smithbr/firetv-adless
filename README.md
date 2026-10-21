@@ -40,10 +40,11 @@ different TV for one command, set `FIRETV_HOST` to its IP.
 
 ### Updating
 
-Run `firetv install` (or pick install in the menu) to update to the latest release. A
+When a newer release is out, `firetv` says so as it opens and offers to
+install it; `firetv install` (or install in the menu) does the same. A
 launcher installed from v0.2 or earlier, or built on another computer, is
-signed with a different key, so Install offers to replace it; that clears
-its favorites, hidden apps and theme.
+signed with a different key, so updating replaces it; that clears its
+favorites, hidden apps and theme, and `firetv` says so before it starts.
 
 ### Make it Home
 

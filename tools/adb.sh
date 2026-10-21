@@ -119,22 +119,46 @@ connect() {
     [[ "$(tv get-state 2>/dev/null)" == device ]] || die "The TV at ${TV} is not connected and authorized (ADB debugging on? accept the prompt on the TV)"
 }
 
+# The release key's fingerprint as dumpsys package prints it under
+# signatures: the hex of Arrays.hashCode over its certificate. A launcher
+# showing another was signed with another key (the debug-key releases up to
+# v0.2, or a build from another computer) and cannot be updated in place.
+# shellcheck disable=SC2034  # read by firetv
+LAUNCHER_SIGNATURE="e0fe6ef5"
+
+# The installed launcher's signing-key fingerprints, comma-separated, or
+# nothing when it is not installed. Anchored on version: so the empty past
+# signatures list that follows never matches.
+launcher_signature() {
+    tv shell dumpsys package la.bsmith.launcher | tr -d '\r' \
+        | sed -n 's/.* version:[0-9]*, signatures:\[\([0-9a-f,]*\)\].*/\1/p' | head -1
+}
+
 # Installs the launcher's APK. A launcher on the TV signed with another key
-# (the debug-key releases up to v0.2, or a build from another computer)
 # cannot be updated in place, so it is replaced, asking first: that clears
-# its favorites, hidden apps and theme. When it is Home through
-# make-home.sh, Amazon's home stands in while it is replaced.
+# its favorites, hidden apps and theme. --replace says the caller already
+# found the other key and the user agreed, so it is replaced straight away.
+# When it is Home through make-home.sh, Amazon's home stands in while it is
+# replaced.
+#   install_launcher [--replace] APK
 install_launcher() {
-    local apk="$1" out was_home=false tools
-    tools="$(dirname "${BASH_SOURCE[0]}")"
-    # shellcheck disable=SC2016  # $1 and $2 expand in the inner sh
-    out="$(spin_out "Installing the launcher on ${TV}" sh -c 'adb -s "$1" install -r "$2" 2>&1' _ "${TV}" "${apk}")" && return 0
-    if [[ "${out}" != *INSTALL_FAILED_UPDATE_INCOMPATIBLE* ]]; then
-        printf '%s\n' "${out}" >&2
-        die "Could not install the launcher"
+    local apk replace=false out was_home=false tools
+    if [[ "${1:-}" == --replace ]]; then
+        replace=true
+        shift
     fi
-    log_warn "The launcher on the TV is signed with a different key (an older release, or a build from another computer), so it cannot be updated in place."
-    confirm "Replace it? Its favorites, hidden apps and theme are cleared." || die "Not installed; the old launcher is still on the TV"
+    apk="$1"
+    tools="$(dirname "${BASH_SOURCE[0]}")"
+    if [[ "${replace}" == false ]]; then
+        # shellcheck disable=SC2016  # $1 and $2 expand in the inner sh
+        out="$(spin_out "Installing the launcher on ${TV}" sh -c 'adb -s "$1" install -r "$2" 2>&1' _ "${TV}" "${apk}")" && return 0
+        if [[ "${out}" != *INSTALL_FAILED_UPDATE_INCOMPATIBLE* ]]; then
+            printf '%s\n' "${out}" >&2
+            die "Could not install the launcher"
+        fi
+        log_warn "The launcher on the TV is signed with a different key (an older release, or a build from another computer), so it cannot be updated in place."
+        confirm "Replace it? Its favorites, hidden apps and theme are cleared." || die "Not installed; the old launcher is still on the TV"
+    fi
     if [[ "$(state com.amazon.tv.launcher)" == disabled ]]; then
         was_home=true
         "${tools}/restore-home.sh"
