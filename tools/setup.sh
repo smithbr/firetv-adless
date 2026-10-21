@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Set up this computer for the tools: Homebrew if it is missing, adb, gum,
-# and the firetv command on PATH: all that installing the released APK
-# needs. Then it offers to carry on with firetv setup, which walks through
-# the TV. --build also sets up building the launcher here: Temurin, the
+# GitHub's gh while the repo is private, and the firetv command on PATH: all
+# that downloading and installing the released APK needs. Then it offers to
+# carry on with firetv setup, which walks through the TV. --build also sets up building the launcher here: Temurin, the
 # Android SDK and its licenses, and sdk.dir in local.properties, so no
 # ANDROID_HOME is needed. Safe to run again: each step skips what is already
 # done. FIRETV_BIN picks where firetv is linked (default ~/.local/bin).
@@ -70,6 +70,33 @@ linux_hints() {
     if [[ "${build}" == true ]]; then
         command -v java >/dev/null 2>&1 || _caution "Java: Temurin 17 to 27 from Adoptium's package repository"
         [[ -n "${ANDROID_HOME:-}" ]] || _caution "Android SDK: Android's command-line tools, then set ANDROID_HOME to the SDK"
+    fi
+}
+
+# While the repo is private, its releases download only through gh, signed
+# in to an account that can see the repo. Once it is public, curl reaches
+# them and this has nothing to do.
+setup_github() {
+    if curl -fsIL -o /dev/null "https://github.com/${REPO}/releases/latest/download/launcher.apk" 2>/dev/null; then
+        _check "Releases download without signing in"
+        return 0
+    fi
+    case "${OSTYPE}" in
+        darwin*) brew_install "formula gh gh" ;;
+        *) tool_installed gh || { _caution "gh: https://github.com/cli/cli#installation, then run this again"; return 0; } ;;
+    esac
+    if ! gh auth status >/dev/null 2>&1; then
+        log_info "${REPO} is private, so downloading the launcher needs your GitHub account."
+        if ! confirm "Sign in to GitHub now?"; then
+            _caution "Not signed in to GitHub: the install step cannot download the launcher"
+            return 0
+        fi
+        gh auth login --hostname github.com --git-protocol https --web
+    fi
+    if gh release view --repo "${REPO}" >/dev/null 2>&1; then
+        _check "GitHub: releases download with your account"
+    else
+        _cross "Your GitHub account cannot see ${REPO}'s releases; ask its owner for access"
     fi
 }
 
@@ -203,6 +230,7 @@ main() {
             die "Unsupported OS: ${OSTYPE}"
             ;;
     esac
+    setup_github
     [[ "${build}" == false ]] || setup_sdk
     link_firetv
     add_bin_to_path

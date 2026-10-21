@@ -12,7 +12,6 @@ cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 # shellcheck source=ui.sh
 source ./ui.sh
 
-REPO="smithbr/firetv-adless"
 LAUNCHER_PKG="la.bsmith.launcher"
 HOF="io.github.toolicious.homeonfire"
 HOF_SERVICE="${HOF}/.HijackService"
@@ -99,13 +98,23 @@ version() {
     tv shell dumpsys package "$1" | tr -d '\r' | sed -n 's/^ *versionName=//p' | head -1
 }
 
+# True when this computer can build the launcher: setup.sh --build pointed
+# the build at an Android SDK, or ANDROID_HOME names one.
+can_build() {
+    grep -q '^sdk\.dir=' ../local.properties 2>/dev/null || [[ -n "${ANDROID_HOME:-}" ]]
+}
+
+# Downloads the latest release; on a computer that can build, building here
+# is offered too.
 do_install() {
-    local how
+    local how=Download
     connect
     if [[ "$(state "${LAUNCHER_PKG}")" != absent ]]; then
         confirm "The launcher $(version "${LAUNCHER_PKG}") is already installed. Reinstall or update it?" || return 0
     fi
-    how="$(gum choose --header "Install the launcher" "Download the latest release" "Build it here (tools/install.sh)")" || return 0
+    if can_build; then
+        how="$(gum choose --header "Install the launcher" "Download the latest release" "Build it here (tools/install.sh)")" || return 0
+    fi
     if [[ "${how}" == Build* ]]; then
         ./install.sh --launch
         return
@@ -119,8 +128,8 @@ do_install() {
     spin "Downloading launcher.apk" sh -c '
         { command -v gh >/dev/null 2>&1 && gh release download --repo "$1" --pattern launcher.apk --dir "$2"; } \
             || curl -fsSL -o "$2/launcher.apk" "https://github.com/$1/releases/latest/download/launcher.apk"' _ "${REPO}" "${tmp}" \
-        || die "Could not download launcher.apk from https://github.com/${REPO}/releases/latest"
-    spin "Installing the launcher on ${TV}" adb -s "${TV}" install -r "${tmp}/launcher.apk"
+        || die "Could not download launcher.apk from https://github.com/${REPO}/releases/latest. While the repo is private, run tools/setup.sh to sign in to GitHub."
+    install_launcher "${tmp}/launcher.apk"
     tv shell am start -n "${LAUNCHER_PKG}/.MainActivity" >/dev/null
     _success "Installed the launcher and opened it on the TV."
 }

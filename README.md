@@ -21,40 +21,35 @@ run the first line again.
 
 `setup.sh` installs [Homebrew](https://brew.sh) if it is missing, then
 `adb` and [gum](https://github.com/charmbracelet/gum), and offers to put
-Homebrew and the `firetv` command on PATH in your shell profile. On Linux
-it lists what to install instead. It ends by offering to set up the TV,
-which runs `firetv setup`:
+Homebrew and the `firetv` command on PATH in your shell profile. While
+this repo is private, it also installs GitHub's `gh` and signs you in, which
+downloading the launcher needs. On Linux it lists what to install instead.
+It ends by offering to set up the TV, which runs `firetv setup`:
 
 1. It shows what to turn on with the remote: Developer options, ADB
    debugging and Apps from Unknown Sources.
 2. It asks for the TV's IP and remembers it, then waits while you accept
    the debugging prompt on the TV.
-3. It installs the launcher, makes it Home, debloats and runs Doctor, in
-   that order. Each step asks before it changes anything.
+3. It downloads the launcher from the
+   [latest release](../../releases/latest) and installs it, makes it Home,
+   debloats and runs Doctor, in that order. Each step asks before it
+   changes anything.
 
 Run `firetv setup` again any time, or `firetv` for the menu. To use a
 different TV for one command, set `FIRETV_HOST` to its IP.
 
-### Install the app
+### Updating
 
-The walkthrough downloads `launcher.apk` from the
-[latest release](../../releases/latest). To build it instead:
-
-- **In [Android Studio](https://developer.android.com/studio):** open the
-  project, set the build variant to `release` (Build > Select Build
-  Variant), pick the TV in the device menu and press Run.
-- **In a terminal:** `tools/setup.sh --build` adds
-  [Temurin](https://adoptium.net) and the Android SDK, accepts the SDK
-  licenses and points the build at the SDK. On Linux, install Temurin 17
-  to 27 and Android's command-line tools and set `ANDROID_HOME` to the SDK
-  first. Then pick **Build it here** at the install step.
-
-Until it's Home, open it from Your Apps on Amazon's home screen.
+Run `firetv` and pick **Install** to update to the latest release. A
+launcher installed from v0.2 or earlier, or built on another computer, is
+signed with a different key, so Install offers to replace it; that clears
+its favorites, hidden apps and theme.
 
 ### Make it Home
 
 The walkthrough's second step, or **Make Home** in the menu. It asks
-before changing anything.
+before changing anything. Until it's Home, open the launcher from Your Apps
+on Amazon's home screen.
 
 **Before Fire OS 8.1.6.9** it disables Amazon's launcher and sets this one as
 Home. Settings sections still open from the Settings row, but the full
@@ -134,6 +129,28 @@ set to the TV's IP and port (`export FIRETV_HOST=192.168.1.20:5555`):
 adb -s "$FIRETV_HOST" push backdrop.jpg /sdcard/Android/data/la.bsmith.launcher/files/backdrop.jpg
 adb -s "$FIRETV_HOST" shell am force-stop la.bsmith.launcher && adb -s "$FIRETV_HOST" shell am start -n la.bsmith.launcher/.MainActivity
 ```
+
+## Develop
+
+`tools/setup.sh --build` adds [Temurin](https://adoptium.net) and the
+Android SDK, accepts the SDK licenses and points the build at the SDK. On
+Linux, install Temurin 17 to 27 and Android's command-line tools and set
+`ANDROID_HOME` to the SDK first. Install then offers **Build it here**,
+which runs `tools/install.sh --launch`. In
+[Android Studio](https://developer.android.com/studio), set the build
+variant to `release` and press Run.
+
+**Signing:** releases are signed with a key kept outside the repo, so each
+one updates the last in place. `tools/release-key.sh` creates it in
+`~/.android` and points Gradle at it; back up the keystore and its
+password, since a lost key means users must reinstall. Without the key,
+release builds use the debug key and cannot update an installed release.
+
+**Releasing:** bump `versionName` and `versionCode` in
+`app/build.gradle.kts` and push to main. The Release workflow builds the
+signed APK and publishes it as `launcher.apk` in a release named after the
+version, listing the commits since the last one. It signs with the key in
+the repo's Actions secrets, which `tools/release-key.sh --github` stores.
 
 ## Undo everything
 
