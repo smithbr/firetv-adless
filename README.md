@@ -100,6 +100,22 @@ firetv clean
 firetv reboot
 ```
 
+### Apps
+
+**Add/Remove Apps** gets apps from Amazon's Appstore, sideloads an APK, or
+uninstalls apps. From the command line:
+
+```bash
+firetv apps                     # what's installed, and from where
+firetv add netflix              # a name from tools/appstore.txt
+firetv add tv.pluto.android     # or a package, ASIN or amazon.com link
+firetv remove netflix
+```
+
+`add` opens the app's Appstore page on the TV and presses OK only for a free
+**Get** or **Download**. For a price or a subscription it leaves the page open
+for you to decide on the TV.
+
 `firetv --help` lists them all.
 
 ## Themes

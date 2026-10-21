@@ -1,0 +1,27 @@
+# Apps `firetv add` knows by name: the name, a tab, then the Fire TV
+# package. Each opened on the Appstore here, or came from it on the test TV.
+# Anything else: give `firetv add` its package, ASIN or amazon.com link.
+Apple TV	com.apple.atve.amazon.appletv
+Crunchyroll	com.crunchyroll.crunchyroid
+discovery+	com.discovery.discoveryplus.firetv
+Disney+	com.disney.disneyplus
+Downloader	com.esaba.downloader
+Emby	tv.emby.embyatv
+Fubo	com.fubo.firetv.screen
+Hulu	com.hulu.plus
+Jellyfin	org.jellyfin.androidtv
+Max	com.hbo.hbonow
+Netflix	com.netflix.ninja
+Pandora	com.pandora.android.gtv
+Paramount+	com.cbs.ott
+Peacock	com.peacock.peacockfiretv
+Philo	com.philo.philo
+Plex	com.plexapp.android
+Pluto TV	tv.pluto.android
+Sling TV	com.sling
+Spotify	com.spotify.tv.android
+Tubi	com.tubitv.ott
+Twitch	tv.twitch.android.viewer
+VLC	org.videolan.vlc
+YouTube	com.amazon.firetv.youtube
+YouTube TV	com.amazon.firetv.youtube.tv
