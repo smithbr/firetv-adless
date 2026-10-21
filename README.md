@@ -82,13 +82,17 @@ TV tuner and a few they depend on), are never disabled.
 The menu also has **Doctor** (checks the connection, launcher, core
 packages, debloat and storage), **Tweaks** (faster animations, less
 background scanning; turning one off restores the old values), **Clean**
-(trims app caches) and **Reboot**. Each runs without the menu too:
+(trims app caches) and **Reboot**. **Add/Remove Apps** sideloads or
+uninstalls apps, and removes old launcher builds: earlier names and debug
+or devicetest builds, listed in `tools/packages-old-launchers.txt`, which
+Doctor warns about. Most run without the menu too:
 
 ```bash
 firetv doctor
 firetv tweaks                      # list them
 firetv tweak fast-animations on
 firetv clean
+firetv old-builds                  # list old launcher builds, then ask to uninstall them
 firetv reboot
 ```
 

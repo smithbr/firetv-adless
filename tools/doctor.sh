@@ -85,6 +85,7 @@ check_launcher() {
         return 0
     fi
     result PASS "Launcher installed"
+    check_old_launchers "${installed}"
     home="$(tv shell cmd package resolve-activity -a android.intent.action.MAIN -c android.intent.category.HOME \
         | tr -d '\r' | sed -n 's/^ *packageName=//p' | head -1)"
     if [[ "${home}" == "${LAUNCHER_PKG}" ]]; then
@@ -95,6 +96,20 @@ check_launcher() {
         result WARN "Launcher is not Home"
         add_next_step "firetv, then Make Home"
     fi
+}
+
+# Old names and debug or devicetest builds beside the release.
+check_old_launchers() {
+    local installed="$1" pkg
+    local -a old=()
+    while read -r pkg; do
+        grep -qxF "package:${pkg}" <<< "${installed}" && old+=("${pkg}")
+    done < <(names packages-old-launchers.txt)
+    if (( ${#old[@]} > 0 )); then
+        result WARN "Old launcher builds installed: ${old[*]}"
+        add_next_step "firetv old-builds"
+    fi
+    return 0
 }
 
 check_storage() {

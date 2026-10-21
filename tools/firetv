@@ -35,6 +35,7 @@ Set up and look after the Fire TV: with no command, a menu for every step.
 | `tweaks` | List the tweaks, each on, off or partly on |
 | `tweak NAME on\|off` | Apply a tweak; off puts back the values it replaced |
 | `clean` | Trim app caches and show the storage freed |
+| `old-builds [--yes\|--list]` | Uninstall old, debug and devicetest launcher builds |
 | `reboot` | Restart the TV |
 | `disconnect` | Drop the adb connection |
 
@@ -51,6 +52,7 @@ case "${1:-}" in
     -h|--help|help) usage; exit 0 ;;
     doctor) exec ./doctor.sh ;;
     clean) exec ./clean.sh ;;
+    old-builds) shift; exec ./remove-old-launchers.sh "$@" ;;
     tweaks) exec ./tweak.sh ;;
     tweak) shift; exec ./tweak.sh "$@" ;;
     reboot)
@@ -261,17 +263,17 @@ do_reboot() {
     _success "The TV is restarting."
 }
 
-# Sideload an APK, or uninstall apps that were installed (pm list -3).
-# The launcher and Home on Fire are left to Reset, which removes them in order.
+# Sideload an APK, uninstall apps that were installed (pm list -3), or
+# uninstall old launcher builds. The launcher and Home on Fire are left to
+# Reset, which removes them in order.
 do_apps() {
     local what
-    what="$(gum choose --header "Add/Remove Apps" "Add an app (APK file)" "Remove apps")" || return 0
-    connect
-    if [[ "${what}" == Add* ]]; then
-        add_app
-    else
-        remove_apps
-    fi
+    what="$(gum choose --header "Add/Remove Apps" "Add an app (APK file)" "Remove apps" "Remove old launcher builds")" || return 0
+    case "${what}" in
+        Add*) connect; add_app ;;
+        "Remove apps") connect; remove_apps ;;
+        *) ./remove-old-launchers.sh ;;
+    esac
 }
 
 add_app() {
@@ -292,8 +294,9 @@ add_app() {
 # Installed (pm list -3) and with a launcher icon, TV or phone (Tubi has
 # only the phone one), which leaves out Amazon's overlay packages.
 remove_apps() {
-    local installed launchable="" names picked pkg name category out
+    local installed launchable="" names picked pkg name category out old
     local -a pkgs=() opts=()
+    old="$(grep -v -E '^[[:space:]]*(#|$)' packages-old-launchers.txt)"
     installed="$(spin_out "Reading the TV's apps" adb -s "${TV}" shell pm list packages -3 | tr -d '\r')"
     for category in LEANBACK_LAUNCHER LAUNCHER; do
         launchable+="$(tv shell cmd package query-activities --brief \
@@ -303,6 +306,8 @@ remove_apps() {
     launchable="$(sort -u <<< "${launchable}")"
     while read -r pkg; do
         [[ -n "${pkg}" && "${pkg}" != "${LAUNCHER_PKG}" && "${pkg}" != "${HOF}" ]] || continue
+        # Old launcher builds: Remove old launcher builds, which names them.
+        ! grep -qxF "${pkg}" <<< "${old}" || continue
         grep -qxF "package:${pkg}" <<< "${installed}" && pkgs+=("${pkg}")
     done <<< "${launchable}"
     (( ${#pkgs[@]} > 0 )) || { log_info "No installed apps to remove."; return 0; }
