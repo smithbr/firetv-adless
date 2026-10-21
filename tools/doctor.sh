@@ -70,7 +70,7 @@ check_debloat() {
             result PASS "${groups[${i}]}: none on this TV"
         elif (( off < present )); then
             result WARN "${groups[${i}]}: ${off} of ${present} off"
-            add_next_step "firetv debloat"
+            add_next_step "firetv tune"
         else
             result PASS "${groups[${i}]}: ${off} of ${present} off"
         fi
@@ -94,7 +94,7 @@ check_launcher() {
         result PASS "Home on Fire installed (opens the launcher from Amazon's Home)"
     else
         result WARN "Launcher is not Home"
-        add_next_step "firetv home"
+        add_next_step "firetv install"
     fi
 }
 

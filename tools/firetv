@@ -2,7 +2,7 @@
 # Set up and look after the Fire TV. Every step is both a menu entry and a
 # command: firetv shows the menu, firetv STEP runs that one step. STEPS is
 # the one list of them, for the menu, the commands and --help. Wraps the
-# scripts beside it.
+# scripts beside it. Quitting the menu drops the adb connection.
 set -euo pipefail
 # Where the user ran this from, for APK paths they type relative to it.
 START_DIR="${PWD}"
@@ -20,15 +20,12 @@ HOF_SERVICE="${HOF}/.HijackService"
 STEPS=(
     "doctor;;check the TV, launcher, debloat and storage"
     "setup;;walk through setting up the TV, step by step"
-    "install;;put the launcher on the TV"
-    "home;;make the launcher the Home app"
-    "debloat;;disable Amazon's ad and telemetry apps"
-    "tweaks;[NAME on|off];faster animations, less background scanning"
+    "install;;put the launcher on the TV and make it Home"
+    "tune;[NAME on|off];disable Amazon's ad apps and apply speed tweaks"
     "apps;[list|add APP|remove APP...];get apps from the Appstore, sideload or uninstall"
     "clean;;trim app caches and remove old launcher builds"
     "reboot;;restart the TV"
     "reset;;remove the launcher and restore Amazon's home"
-    "disconnect;;drop the adb connection"
 )
 
 # shellcheck disable=SC2016  # the backticks are Markdown
@@ -41,10 +38,10 @@ usage() {
             IFS=';' read -r name args what <<< "${step}"
             printf '| `%s` | %s |\n' "${name}${args:+ ${args//|/\\|}}" "${what}"
         done
-        printf '\n`tweaks` with no arguments is a checklist in a terminal and a list'
+        printf '\n`tune` with no arguments is a checklist in a terminal and a list'
         printf ' elsewhere, and `apps` a menu in a terminal and a list elsewhere. `apps add`'
         printf ' takes a name from tools/appstore.txt, a package, an ASIN or an amazon.com link.'
-        printf ' setup, install, home, debloat and reset need a terminal.\n\n'
+        printf ' setup, install and reset need a terminal.\n\n'
         printf 'The TV is the IP that `setup` or the menu asked for, or `FIRETV_HOST`\n(IP, or IP:port) when set.\n'
     } | show_help
 }
@@ -64,10 +61,10 @@ if [[ -n "${CMD}" ]]; then
     [[ -n "${found%%;*}" || $# -eq 0 ]] || die "firetv ${CMD} takes no arguments (see firetv --help)"
 fi
 
-# The menu and the steps that ask need gum and a terminal; doctor, clean,
-# reboot, disconnect and tweaks run anywhere.
+# The menu and the steps that ask need gum and a terminal; doctor, tune,
+# apps, clean and reboot run anywhere.
 case "${CMD}" in
-    ""|setup|install|home|debloat|reset)
+    ""|setup|install|reset)
         command -v gum >/dev/null 2>&1 || die "gum not found: brew install gum"
         [[ -t 0 && -t 1 ]] || die "firetv${CMD:+ ${CMD}} is interactive; run it in a terminal"
         ;;
@@ -176,23 +173,29 @@ can_build() {
 
 # Downloads the latest release; on a computer that can build, building here
 # is offered too. --confirmed is offer_update's: the user agreed to that
-# release, so it downloads it without asking again.
+# release, so it downloads it without asking again. Whenever the launcher
+# ends up on the TV, even when not reinstalled, it is then made Home.
 do_install() {
     local how=Download confirmed=false
     local -a replace=()
     [[ "${1:-}" != --confirmed ]] || confirmed=true
     connect
     read_launcher
-    if [[ -n "${INSTALLED}" && "${confirmed}" == false ]]; then
-        confirm_install || return 0
+    if [[ -n "${INSTALLED}" && "${confirmed}" == false ]] && ! confirm_install; then
+        make_home
+        return
     fi
     # The user has agreed to the replacing; install_launcher need not ask.
     [[ "${OLD_KEY}" == false ]] || replace=(--replace)
     if [[ "${confirmed}" == false ]] && can_build; then
-        how="$(gum choose --header "Install the launcher" "Download the latest release" "Build it here (tools/install.sh)")" || return 0
+        if ! how="$(gum choose --header "Install the launcher" "Download the latest release" "Build it here (tools/install.sh)")"; then
+            [[ -z "${INSTALLED}" ]] || make_home
+            return 0
+        fi
     fi
     if [[ "${how}" == Build* ]]; then
         ./install.sh --launch
+        make_home
         return
     fi
     # Not local: the EXIT trap runs after this function has returned.
@@ -208,6 +211,7 @@ do_install() {
     install_launcher ${replace[@]+"${replace[@]}"} "${tmp}/launcher.apk"
     tv shell am start -n "${LAUNCHER_PKG}/.MainActivity" >/dev/null
     _success "Installed the launcher and opened it on the TV."
+    make_home
 }
 
 # Package the Home intent resolves to; android's resolver when no default.
@@ -216,9 +220,8 @@ home_package() {
         | tr -d '\r' | sed -n 's/^ *packageName=//p' | head -1
 }
 
-do_home() {
-    connect
-    [[ "$(state "${LAUNCHER_PKG}")" != absent ]] || die "The launcher is not installed; pick Install first"
+# Makes the installed launcher the Home app, after do_install has connected.
+make_home() {
     if [[ "$(home_package)" == "${LAUNCHER_PKG}" ]]; then
         _success "The launcher is already the Home app."
         return 0
@@ -232,109 +235,9 @@ do_home() {
     ./make-home.sh
 }
 
-# Checklist of packages-disabled.txt: ticked means disabled. Ticked packages
-# that are enabled get disabled, unticked ones that are disabled get enabled.
-# gum cannot relabel a row as it is toggled, so each row says what Enter
-# does either way.
-do_debloat() {
-    local all off line pkg group="" st picked listed="" disable="" enable="" missing=""
-    local width=0 index what
-    local -a opts=() pkgs=() groups=() states=()
-    connect
-    # Two adb calls for the whole list; state() would take two per package.
-    all="$(spin_out "Reading the TV's packages" adb -s "${TV}" shell pm list packages | tr -d '\r')"
-    off="$(tv shell pm list packages -d | tr -d '\r')"
-    while read -r line; do
-        [[ -n "${line}" ]] || continue
-        if [[ "${line}" == \#* ]]; then
-            group="${line#\# }"
-            continue
-        fi
-        pkg="${line}"
-        if grep -qxF "${pkg}" packages-core.txt; then
-            log_warn "${pkg} is a core package (packages-core.txt); never disabled"
-            continue
-        fi
-        if ! grep -qxF "package:${pkg}" <<< "${all}"; then
-            missing="${missing} ${pkg}"
-            continue
-        fi
-        st=enabled
-        grep -qxF "package:${pkg}" <<< "${off}" && st=disabled
-        pkgs+=("${pkg}")
-        groups+=("${group}")
-        states+=("${st}")
-        (( ${#pkg} <= width )) || width=${#pkg}
-        listed="${listed} ${pkg}"
-    done < packages-disabled.txt
-    [[ -z "${missing}" ]] || log_info "Not on this TV:${missing}"
-    (( ${#pkgs[@]} > 0 )) || die "None of packages-disabled.txt is on this TV"
-    for index in "${!pkgs[@]}"; do
-        what="off → on if unticked"
-        [[ "${states[${index}]}" == enabled ]] && what="on → off if ticked"
-        opts+=("$(printf '%-*s  %-9s  %s' "${width}" "${pkgs[${index}]}" "${groups[${index}]}" "${what}")"$'\t'"${pkgs[${index}]}")
-    done
-
-    picked="$(choose_many --selected "${listed}" "A tick means off (disabled). Every package starts ticked.
-Untick one to keep it on, or to turn it back on." "${opts[@]}")" || return 0
-    for pkg in ${listed}; do
-        st=enabled
-        grep -qxF "package:${pkg}" <<< "${off}" && st=disabled
-        if grep -qxF "${pkg}" <<< "${picked}"; then
-            [[ "${st}" == enabled ]] && disable="${disable} ${pkg}"
-        else
-            [[ "${st}" == disabled ]] && enable="${enable} ${pkg}"
-        fi
-    done
-    if [[ -z "${disable}${enable}" ]]; then
-        log_info "Nothing to change."
-        return 0
-    fi
-    _box "$(
-        for pkg in ${disable}; do printf 'disable  %s\n' "${pkg}"; done
-        for pkg in ${enable}; do printf 'enable   %s\n' "${pkg}"; done
-    )"
-    confirm "Apply these changes on ${TV}?" || return 0
-    for pkg in ${disable}; do
-        tv shell pm disable-user --user 0 "${pkg}" | tr -d '\r' | sed "s/^/${pkg}: /"
-    done
-    for pkg in ${enable}; do
-        tv shell pm enable "${pkg}" | tr -d '\r' | sed "s/^/${pkg}: /"
-    done
-}
-
-# Checklist of tweak.sh's tweaks: ticked means on. A ticked tweak not fully
-# on is turned on; an unticked one not fully off is turned off.
-# With NAME on|off, applies that tweak; outside a terminal, lists them;
-# otherwise a checklist.
-do_tweaks() {
-    local rows name st desc picked on="" change=""
-    local -a opts=()
-    if (( $# > 0 )) || [[ ! -t 0 || ! -t 1 ]] || ! command -v gum >/dev/null 2>&1; then
-        ./tweak.sh "$@"
-        return
-    fi
-    rows="$(spin_out "Reading the TV's settings" ./tweak.sh --tsv)"
-    while IFS=$'\t' read -r name st desc; do
-        opts+=("$(printf '%-18s %-7s %s' "${name}" "${st}" "${desc}")"$'\t'"${name}")
-        [[ "${st}" != on ]] || on="${on} ${name}"
-    done <<< "${rows}"
-    picked="$(choose_many --selected "${on}" "Ticked tweaks get turned on, unticked ones off" "${opts[@]}")" || return 0
-    while IFS=$'\t' read -r name st _; do
-        if grep -qxF "${name}" <<< "${picked}"; then
-            [[ "${st}" == on ]] || change="${change} ${name}:on"
-        else
-            [[ "${st}" == off ]] || change="${change} ${name}:off"
-        fi
-    done <<< "${rows}"
-    if [[ -z "${change}" ]]; then
-        log_info "Nothing to change."
-        return 0
-    fi
-    for name in ${change}; do
-        ./tweak.sh "${name%:*}" "${name#*:}"
-    done
-}
+# Disables Amazon's ad apps and applies speed tweaks; tune.sh picks a
+# checklist or a list itself.
+do_tune() { ./tune.sh "$@"; }
 
 # Asks first in the menu; firetv reboot was asked for by name.
 do_reboot() {
@@ -357,10 +260,6 @@ do_clean() {
         ./remove-old-launchers.sh --list
         log_info "Run firetv clean in a terminal to remove them."
     fi
-}
-
-do_disconnect() {
-    adb disconnect "${TV}"
 }
 
 # Get an app from the Appstore, sideload an APK, or uninstall apps. The
@@ -517,16 +416,15 @@ show_tv_steps() {
     confirm "Done on the TV?" || { log_info "Run firetv setup again when it is."; exit 0; }
 }
 
-# The walkthrough: the TV's own steps, connecting, then install, home,
-# debloat and doctor.
+# The walkthrough: the TV's own steps, connecting, then install (which
+# makes the launcher Home), tune and doctor.
 do_setup() {
     [[ "${TV_STEPS_SHOWN:-}" == true ]] || show_tv_steps
     [[ "${FIRETV_HOST_ASKED:-}" == true ]] || confirm "Use the TV at ${TV}?" || ask_host
     wait_for_tv
-    walk_step "Step 1 of 4: Install the launcher" do_install
-    walk_step "Step 2 of 4: Make it the Home app" do_home
-    walk_step "Step 3 of 4: Debloat" do_debloat
-    walk_step "Step 4 of 4: Check everything" do_doctor
+    walk_step "Step 1 of 3: Install the launcher and make it Home" do_install
+    walk_step "Step 2 of 3: Tune" do_tune
+    walk_step "Step 3 of 3: Check everything" do_doctor
     printf '\n'
     _success "Set up. Run firetv any time for the menu."
 }
@@ -556,8 +454,12 @@ offer_update
 
 while true; do
     _header "Launcher: TV ${TV}"
-    choice="$(gum choose --label-delimiter='|' "${menu[@]}")" || exit 0
-    [[ "${choice}" != quit ]] || exit 0
+    # Quit, or Esc, drops the adb connection.
+    choice="$(gum choose --label-delimiter='|' "${menu[@]}")" || choice=quit
+    if [[ "${choice}" == quit ]]; then
+        adb disconnect "${TV}" >/dev/null 2>&1 || true
+        exit 0
+    fi
     run "do_${choice}"
     printf '\n'
 done

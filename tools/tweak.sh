@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Android settings tweaks from tweaks.txt.
+# Android settings tweaks from tweaks.txt, for firetv tune.
 #   tweak.sh              list each tweak: on, off, or partly on
 #   tweak.sh --tsv        the same as "NAME<tab>STATE<tab>DESCRIPTION" lines
 #   tweak.sh NAME on|off  apply one; on saves the values it replaces, off
@@ -83,7 +83,7 @@ turn_off() {
 apply() {
     local name="$1" action="$2" matched ns key value
     matched="$(rows | awk -F'\t' -v n="${name}" '$1 == n')"
-    [[ -n "${matched}" ]] || die "Unknown tweak: ${name} (see firetv tweaks)"
+    [[ -n "${matched}" ]] || die "Unknown tweak: ${name} (see firetv tune)"
     mkdir -p "$(dirname "${SAVED}")"
     while IFS=$'\t' read -r _ ns key value _; do
         if [[ "${action}" == on ]]; then
@@ -100,7 +100,7 @@ main() {
         "") connect; list false ;;
         --tsv) connect; list true ;;
         *)
-            [[ "${2:-}" =~ ^(on|off)$ && $# -eq 2 ]] || die "Usage: firetv tweaks NAME on|off (firetv tweaks lists them)"
+            [[ "${2:-}" =~ ^(on|off)$ && $# -eq 2 ]] || die "Usage: firetv tune NAME on|off (firetv tune lists them)"
             connect
             apply "$1" "$2"
             ;;

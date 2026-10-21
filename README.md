@@ -31,9 +31,9 @@ It ends by offering to set up the TV, which runs `firetv setup`:
 2. It asks for the TV's IP and remembers it, then waits while you accept
    the debugging prompt on the TV.
 3. It downloads the launcher from the
-   [latest release](../../releases/latest) and installs it, makes it Home,
-   debloats and runs Doctor, in that order. Each step asks before it
-   changes anything.
+   [latest release](../../releases/latest), installs it and makes it Home,
+   then tunes the TV and runs Doctor, in that order. Each step asks before
+   it changes anything.
 
 Run `firetv setup` again any time, or `firetv` for the menu. To use a
 different TV for one command, set `FIRETV_HOST` to its IP.
@@ -48,9 +48,9 @@ favorites, hidden apps and theme, and `firetv` says so before it starts.
 
 ### Make it Home
 
-The walkthrough's second step, or `firetv home`. It asks
-before changing anything. Until it's Home, open the launcher from Your Apps
-on Amazon's home screen.
+Part of install: once the launcher is on the TV, install makes it Home, in
+the walkthrough or with `firetv install`. It asks before changing anything.
+Until it's Home, open the launcher from Your Apps on Amazon's home screen.
 
 **Before Fire OS 8.1.6.9** it disables Amazon's launcher and sets this one as
 Home. Settings sections still open from the Settings row, but the full
@@ -69,10 +69,12 @@ to Amazon's home unless you turn them off in Home on Fire.
 
 ### Debloat
 
-The walkthrough's third step, or `firetv debloat`, lets you choose
-which of the ad, recommendation and telemetry packages in
-`tools/packages-disabled.txt` to disable. A tick means off, and every
-package starts ticked; untick one to keep it on or turn it back on.
+Part of tune, in the walkthrough or with `firetv tune`: one checklist of
+the ad, recommendation and telemetry packages in
+`tools/packages-disabled.txt` and the settings tweaks in `tools/tweaks.txt`.
+A tick applies it: a ticked package is disabled, a ticked tweak is on. Every
+package starts ticked and each tweak starts as it is on the TV; untick a
+package to keep it on or turn it back on.
 
 The packages the TV needs, listed in `tools/packages-core.txt` (Amazon's
 launcher, Settings, the Appstore, OTA updates, sign-in, the screensaver, the
@@ -85,8 +87,9 @@ runs what doctor in the menu runs. `firetv --help` lists them all.
 
 ```bash
 firetv doctor                      # check the connection, launcher, core packages, debloat and storage; changes nothing
-firetv tweaks                      # checklist in a terminal, list elsewhere
-firetv tweaks fast-animations on   # turning one off restores the old values
+firetv install                     # install or update the launcher, then make it Home
+firetv tune                        # checklist in a terminal, tweak list elsewhere
+firetv tune fast-animations on     # turning one off restores the old values
 firetv clean                       # trim app caches, then remove old launcher builds, asking first
 firetv reboot
 ```
