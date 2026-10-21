@@ -35,8 +35,16 @@ adb install adless.apk
 
 **Or build it in [Android Studio](https://developer.android.com/studio):**
 open the project, set the build variant to `release` (Build > Select Build
-Variant), pick the TV in the device menu and press Run. Once Studio has set
-up the SDK, `tools/install.sh --launch` does the same from a terminal.
+Variant), pick the TV in the device menu and press Run.
+
+**Or build it in a terminal:** it needs JDK 17+ and the Android SDK; the
+build downloads the platform it compiles against. On macOS:
+`brew install --cask temurin android-commandlinetools`, then
+`export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools` and
+`yes | sdkmanager --licenses`. On Linux, get OpenJDK 17+ and Android's
+command-line tools from your package manager, set `ANDROID_HOME` to the SDK
+and accept its licenses the same way. Then
+`tools/install.sh --launch`.
 
 Until it's Home, open it from Your Apps on Amazon's home screen.
 
