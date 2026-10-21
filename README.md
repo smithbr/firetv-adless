@@ -95,6 +95,22 @@ Old launcher builds are earlier names and debug or devicetest builds,
 listed in `tools/packages-old-launchers.txt`. Each shows as a blank tile in
 Apps; doctor warns about them.
 
+### Apps
+
+`firetv apps` gets apps from Amazon's Appstore, sideloads an APK, or
+uninstalls apps. From the command line:
+
+```bash
+firetv apps list                   # what's installed, and from where
+firetv apps add netflix            # a name from tools/appstore.txt
+firetv apps add tv.pluto.android   # or a package, ASIN or amazon.com link
+firetv apps remove netflix
+```
+
+`add` opens the app's Appstore page on the TV and presses OK only for a free
+**Get** or **Download**. For a price or a subscription it leaves the page open
+for you to decide on the TV.
+
 ## Themes
 
 Pick one from the Theme tile in Settings. Each is described in
