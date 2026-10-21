@@ -149,9 +149,12 @@ do_home() {
 
 # Checklist of packages-disabled.txt: ticked means disabled. Ticked packages
 # that are enabled get disabled, unticked ones that are disabled get enabled.
+# gum cannot relabel a row as it is toggled, so each row says what Enter
+# does either way.
 do_debloat() {
     local all off line pkg group="" st picked listed="" disable="" enable="" missing=""
-    local -a opts=()
+    local width=0 index what
+    local -a opts=() pkgs=() groups=() states=()
     connect
     # Two adb calls for the whole list; state() would take two per package.
     all="$(spin_out "Reading the TV's packages" adb -s "${TV}" shell pm list packages | tr -d '\r')"
@@ -173,13 +176,22 @@ do_debloat() {
         fi
         st=enabled
         grep -qxF "package:${pkg}" <<< "${off}" && st=disabled
-        opts+=("$(printf '%-38s %-10s %s' "${pkg}" "${group}" "${st}")"$'\t'"${pkg}")
+        pkgs+=("${pkg}")
+        groups+=("${group}")
+        states+=("${st}")
+        (( ${#pkg} <= width )) || width=${#pkg}
         listed="${listed} ${pkg}"
     done < packages-disabled.txt
     [[ -z "${missing}" ]] || log_info "Not on this TV:${missing}"
-    (( ${#opts[@]} > 0 )) || die "None of packages-disabled.txt is on this TV"
+    (( ${#pkgs[@]} > 0 )) || die "None of packages-disabled.txt is on this TV"
+    for index in "${!pkgs[@]}"; do
+        what="off → on if unticked"
+        [[ "${states[${index}]}" == enabled ]] && what="on → off if ticked"
+        opts+=("$(printf '%-*s  %-9s  %s' "${width}" "${pkgs[${index}]}" "${groups[${index}]}" "${what}")"$'\t'"${pkgs[${index}]}")
+    done
 
-    picked="$(choose_many --selected "${listed}" "Ticked packages get disabled, unticked ones enabled" "${opts[@]}")" || return 0
+    picked="$(choose_many --selected "${listed}" "A tick means off (disabled). Every package starts ticked.
+Untick one to keep it on, or to turn it back on." "${opts[@]}")" || return 0
     for pkg in ${listed}; do
         st=enabled
         grep -qxF "package:${pkg}" <<< "${off}" && st=disabled

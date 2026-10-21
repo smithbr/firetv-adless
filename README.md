@@ -75,7 +75,8 @@ to Amazon's home unless you turn them off in Home on Fire.
 
 The walkthrough's third step, or **Debloat** in the menu, lets you choose
 which of the ad, recommendation and telemetry packages in
-`tools/packages-disabled.txt` to disable.
+`tools/packages-disabled.txt` to disable. A tick means off, and every
+package starts ticked; untick one to keep it on or turn it back on.
 
 The packages the TV needs, listed in `tools/packages-core.txt` (Amazon's
 launcher, Settings, the Appstore, OTA updates, sign-in, the screensaver, the
