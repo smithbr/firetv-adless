@@ -1,0 +1,7 @@
+# theme	max p90 ms	max p99 ms	worst p90 seen	worst p99 seen (tests/device/run.sh --baseline)
+DAPPLE_TV	55	128	40	85
+TERMINAL	58	158	42	105
+SNITCH	77	164	57	109
+GAME_QUEEN	58	128	42	85
+AMBIENT	63	116	46	77
+EDITORIAL	77	158	57	105

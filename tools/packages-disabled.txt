@@ -1,0 +1,21 @@
+# Packages disabled on the Fire TV with `pm disable-user --user 0`, by group.
+# Nothing is uninstalled; restore-debloat.sh re-enables every line.
+# telemetry
+com.amazon.tv.acr
+com.amazon.device.telemetry.emitter
+com.amazon.wirelessmetrics.service
+com.amazon.perfcollection
+com.amazon.perfc
+com.amazon.hybridadidservice
+# ads
+com.amazon.sneakpeek
+com.amazon.shoptv.client
+com.amazon.tv.earlyaccess
+com.amazon.tv.democontent.provider
+# bloat
+com.amazon.minitv.android.app
+com.amazon.gamehub
+com.amazon.bueller.photos
+com.amazon.storm.lightning.tutorial
+com.amazon.tmm.tutorial
+com.mediatek.opapp
