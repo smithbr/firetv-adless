@@ -8,4 +8,4 @@ connect
 if [[ "$(state com.amazon.tv.launcher)" == disabled ]]; then
     die "Amazon's launcher is disabled; run ./restore-home.sh first so the TV keeps a Home app"
 fi
-tv uninstall la.bsmith.adless | tr -d '\r'
+tv uninstall la.bsmith.launcher | tr -d '\r'

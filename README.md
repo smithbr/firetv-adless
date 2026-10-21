@@ -29,11 +29,11 @@ adb connect "$FIRETV_HOST"
 
 ### Install the app
 
-**Download it:** get `adless.apk` from the
+**Download it:** get `launcher.apk` from the
 [latest release](../../releases/latest) and install it:
 
 ```bash
-adb install adless.apk
+adb install launcher.apk
 ```
 
 **Or build it in [Android Studio](https://developer.android.com/studio):**
@@ -59,18 +59,18 @@ tools/make-home.sh
 
 It asks before changing anything.
 
-**Before Fire OS 8.1.6.9** it disables Amazon's launcher and sets Adless as
+**Before Fire OS 8.1.6.9** it disables Amazon's launcher and sets this one as
 Home. Settings sections still open from the Settings row, but the full
 Settings menu is gone.
 
 **Fire OS 8.1.6.9 and later** block replacing Amazon's launcher without
 root, so the script changes nothing and offers
 [Home on Fire](https://github.com/toolicious/home-on-fire) (GPL-3.0): an
-accessibility service that opens Adless at boot and whenever Amazon's home
+accessibility service that opens this launcher at boot and whenever Amazon's home
 appears. Run `tools/home-on-fire.sh`, then on the TV select **Choose target
-app…** and pick `Adless`.
+app…** and pick `Launcher`.
 
-Home then reaches Adless after about 2.5 s (4 to 5 s after a reboot), with
+Home then reaches this launcher after about 2.5 s (4 to 5 s after a reboot), with
 Amazon's home showing meanwhile. Long-press and double-press Home still go
 to Amazon's home unless you turn them off in Home on Fire.
 
@@ -114,8 +114,8 @@ Hidden apps).
 To use your own photo, push it and restart the app:
 
 ```bash
-adb -s "$FIRETV_HOST" push backdrop.jpg /sdcard/Android/data/la.bsmith.adless/files/backdrop.jpg
-adb -s "$FIRETV_HOST" shell am force-stop la.bsmith.adless && adb -s "$FIRETV_HOST" shell am start -n la.bsmith.adless/.MainActivity
+adb -s "$FIRETV_HOST" push backdrop.jpg /sdcard/Android/data/la.bsmith.launcher/files/backdrop.jpg
+adb -s "$FIRETV_HOST" shell am force-stop la.bsmith.launcher && adb -s "$FIRETV_HOST" shell am start -n la.bsmith.launcher/.MainActivity
 ```
 
 ## Undo everything

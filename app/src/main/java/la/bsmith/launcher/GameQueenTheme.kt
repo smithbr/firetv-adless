@@ -1,4 +1,4 @@
-package la.bsmith.adless
+package la.bsmith.launcher
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke

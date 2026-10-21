@@ -19,7 +19,7 @@ while read -r theme; do
     [[ -f "${source_png}" ]] || die "no ${source_png}: the last run skipped ${theme}"
     slug="$(tr '[:upper:]_' '[:lower:]-' <<< "${theme}")"
     sips --resampleWidth 1280 "${source_png}" --out "${SHOTS}/${slug}.png" >/dev/null
-    label="$(sed -nE "s/^    ${theme}\\(\"([^\"]+)\".*/\\1/p" "${ROOT}/app/src/main/java/la/bsmith/adless/Themes.kt")"
+    label="$(sed -nE "s/^    ${theme}\\(\"([^\"]+)\".*/\\1/p" "${ROOT}/app/src/main/java/la/bsmith/launcher/Themes.kt")"
     cells+=("![${label}](docs/screenshots/${slug}.png)<br>${label}")
 done < <(themes)
 

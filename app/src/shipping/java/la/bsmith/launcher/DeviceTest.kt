@@ -1,4 +1,4 @@
-package la.bsmith.adless
+package la.bsmith.launcher
 
 import android.app.Activity
 

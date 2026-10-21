@@ -19,12 +19,12 @@ connect
 tv push "${SCRIPT}" /sdcard/launcher-bench.txt >/dev/null
 rm -f "${SCRIPT}"
 tv shell input keyevent KEYCODE_WAKEUP >/dev/null
-tv shell am force-stop la.bsmith.adless
-tv shell am start -n la.bsmith.adless/.MainActivity >/dev/null 2>&1
+tv shell am force-stop la.bsmith.launcher
+tv shell am start -n la.bsmith.launcher/.MainActivity >/dev/null 2>&1
 sleep 6
-tv shell dumpsys gfxinfo la.bsmith.adless reset >/dev/null
+tv shell dumpsys gfxinfo la.bsmith.launcher reset >/dev/null
 tv shell monkey -f /sdcard/launcher-bench.txt 1 >/dev/null 2>&1
 sleep 1.5
-tv shell dumpsys gfxinfo la.bsmith.adless | tr -d '\r' \
+tv shell dumpsys gfxinfo la.bsmith.launcher | tr -d '\r' \
     | grep -E 'Total frames|Janky frames|50th percentile|90th percentile|99th percentile|Number Slow UI' \
     | sed "s/^/[${LABEL}] /"

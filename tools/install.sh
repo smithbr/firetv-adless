@@ -11,5 +11,5 @@ APK="../app/build/outputs/apk/release/app-release.apk"
 connect
 tv install -r "${APK}" | tr -d '\r'
 if [[ "${1:-}" == --launch ]]; then
-    tv shell am start -n la.bsmith.adless/.MainActivity >/dev/null
+    tv shell am start -n la.bsmith.launcher/.MainActivity >/dev/null
 fi

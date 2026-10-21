@@ -7,9 +7,9 @@ ROOT="$(cd "${DEVICE_DIR}/../.." && pwd)"
 # shellcheck source=../../tools/lib.sh
 source "${ROOT}/tools/lib.sh"
 
-# The throwaway build. Never the installed launcher, la.bsmith.adless.
-PKG="la.bsmith.adless.devicetest"
-ACTIVITY="${PKG}/la.bsmith.adless.MainActivity"
+# The throwaway build. Never the installed launcher, la.bsmith.launcher.
+PKG="la.bsmith.launcher.devicetest"
+ACTIVITY="${PKG}/la.bsmith.launcher.MainActivity"
 # shellcheck disable=SC2034  # used by run.sh
 APK="${ROOT}/app/build/outputs/apk/devicetest/app-devicetest.apk"
 
@@ -25,7 +25,7 @@ FAVORITES=8
 
 # The themes, from the enum, so a new theme is tested without editing this.
 themes() {
-    sed -nE 's/^    ([A-Z_]+)\(".*/\1/p' "${ROOT}/app/src/main/java/la/bsmith/adless/Themes.kt"
+    sed -nE 's/^    ([A-Z_]+)\(".*/\1/p' "${ROOT}/app/src/main/java/la/bsmith/launcher/Themes.kt"
 }
 
 # Width and height of the screen in pixels, as "W H".

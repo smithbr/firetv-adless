@@ -1,4 +1,4 @@
-package la.bsmith.adless
+package la.bsmith.launcher
 
 /** One line under the focused favorite's name on the Home tab, by package. */
 object Taglines {

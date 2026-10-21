@@ -6,29 +6,29 @@ plugins {
 }
 
 android {
-    namespace = "la.bsmith.adless"
+    namespace = "la.bsmith.launcher"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "la.bsmith.adless"
+        applicationId = "la.bsmith.launcher"
         // Fire OS 8 is Android 11 (API 30); Fire OS 6 is API 25.
         minSdk = 25
         targetSdk = 30
         versionCode = 1
         versionName = "0.1"
+        resValue("string", "app_name", "Launcher")
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("debug")
-            resValue("string", "app_name", "Adless")
         }
         // The debug variant is a separate app, so it can sit beside the
         // installed release as a throwaway test app (uninstall, for one).
         debug {
             applicationIdSuffix = ".debug"
-            resValue("string", "app_name", "Adless Debug")
+            resValue("string", "app_name", "Launcher Debug")
         }
         // For tests/device: built like the release, so frame timings match,
         // but a separate app the harness can clear, with intent extras that
@@ -36,7 +36,7 @@ android {
         create("devicetest") {
             initWith(getByName("release"))
             applicationIdSuffix = ".devicetest"
-            resValue("string", "app_name", "Adless Test")
+            resValue("string", "app_name", "Launcher Test")
             matchingFallbacks += "release"
         }
     }

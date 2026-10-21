@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 source ./lib.sh
 
-LAUNCHER="${LAUNCHER:-la.bsmith.adless/.MainActivity}"
+LAUNCHER="${LAUNCHER:-la.bsmith.launcher/.MainActivity}"
 HOF="io.github.toolicious.homeonfire"
 SERVICE="${HOF}/.HijackService"
 # Pinned: a new release means a new version and checksum here.
@@ -48,7 +48,7 @@ tv shell am start -n "${HOF}/.MainActivity" >/dev/null 2>&1
 cat <<EOF
 
 Home on Fire is open on the TV. Finish there with the remote:
-  1. Select "Choose target app..." and pick Adless.
-  2. Press Home. Adless opens after about 2.5 s, with Amazon's home showing meanwhile.
-Long-press and double-press Home open Amazon's home; turn each off in Home on Fire's settings to have them open Adless too.
+  1. Select "Choose target app..." and pick Launcher.
+  2. Press Home. The launcher opens after about 2.5 s, with Amazon's home showing meanwhile.
+Long-press and double-press Home open Amazon's home; turn each off in Home on Fire's settings to have them open the launcher too.
 EOF

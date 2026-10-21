@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 source ./lib.sh
 
-LAUNCHER="${LAUNCHER:-la.bsmith.adless/.MainActivity}"
+LAUNCHER="${LAUNCHER:-la.bsmith.launcher/.MainActivity}"
 AMAZON="com.amazon.tv.launcher com.amazon.firehomestarter"
 
 connect
@@ -32,7 +32,7 @@ for pkg in ${AMAZON}; do
                     || die "Could not disable ${pkg}, so nothing was changed: ${out}"
                 # Fire OS 8.1.6.9 and later protect Amazon's launcher.
                 printf '\nThis Fire OS version protects Amazon'"'"'s launcher, so Home cannot be switched directly. Nothing was changed.\n'
-                printf 'Home on Fire does it instead: it opens Adless whenever Amazon'"'"'s home appears.\n'
+                printf 'Home on Fire does it instead: it opens the launcher whenever Amazon'"'"'s home appears.\n'
                 confirm "Set up Home on Fire now?" \
                     || die "Not set up. To do it later, run: $(pwd)/home-on-fire.sh"
                 # Not exec: this script keeps the TV lock and releases it on exit.

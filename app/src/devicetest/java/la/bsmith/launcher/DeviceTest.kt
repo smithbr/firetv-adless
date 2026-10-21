@@ -1,4 +1,4 @@
-package la.bsmith.adless
+package la.bsmith.launcher
 
 import android.app.Activity
 import kotlinx.coroutines.flow.first
@@ -8,7 +8,7 @@ import java.util.Calendar
 /**
  * Intent extras for tests/device, compiled only into the devicetest build:
  *
- *     am start -n la.bsmith.adless.devicetest/la.bsmith.adless.MainActivity \
+ *     am start -n la.bsmith.launcher.devicetest/la.bsmith.launcher.MainActivity \
  *         --es theme TERMINAL --ei favorites 6 --ez freezeClock true --ez freezeBackdrop true
  *
  * theme: a [Theme] name, saved as if picked. favorites: fills favorites up
@@ -38,7 +38,7 @@ object DeviceTest {
                 val current = store.favorites.first()
                 AppRepository(activity).loadApps()
                     // Not the installed launchers: a misfired OK must not open the real one.
-                    .filter { it.id !in current && !it.packageName.startsWith("la.bsmith.adless") }
+                    .filter { it.id !in current && !it.packageName.startsWith("la.bsmith.launcher") }
                     .take((count - current.size).coerceAtLeast(0))
                     .forEach { store.toggleFavorite(it.id) }
             }

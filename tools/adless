@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 REPO="smithbr/firetv-adless"
-ADLESS="la.bsmith.adless"
+ADLESS="la.bsmith.launcher"
 HOF="io.github.toolicious.homeonfire"
 
 # Interactive only: every step needs a choice or a confirm, and the scripts
@@ -62,13 +62,13 @@ do_install() {
     trap 'rm -rf "${tmp}"; unlock' EXIT
     # gh reaches the release while the repo is private; curl once it is public.
     if ! { command -v gh >/dev/null 2>&1 \
-            && gum spin --show-error --title "Downloading adless.apk" -- \
-                gh release download --repo "${REPO}" --pattern adless.apk --dir "${tmp}"; } \
-        && ! gum spin --show-error --title "Downloading adless.apk" -- \
-            curl -fsSL -o "${tmp}/adless.apk" "https://github.com/${REPO}/releases/latest/download/adless.apk"; then
-        die "Could not download adless.apk from https://github.com/${REPO}/releases/latest"
+            && gum spin --show-error --title "Downloading launcher.apk" -- \
+                gh release download --repo "${REPO}" --pattern launcher.apk --dir "${tmp}"; } \
+        && ! gum spin --show-error --title "Downloading launcher.apk" -- \
+            curl -fsSL -o "${tmp}/launcher.apk" "https://github.com/${REPO}/releases/latest/download/launcher.apk"; then
+        die "Could not download launcher.apk from https://github.com/${REPO}/releases/latest"
     fi
-    gum spin --show-error --title "Installing on ${TV}" -- adb -s "${TV}" install -r "${tmp}/adless.apk"
+    gum spin --show-error --title "Installing on ${TV}" -- adb -s "${TV}" install -r "${tmp}/launcher.apk"
     tv shell am start -n "${ADLESS}/.MainActivity" >/dev/null
     printf 'Adless installed and opened on the TV.\n'
 }

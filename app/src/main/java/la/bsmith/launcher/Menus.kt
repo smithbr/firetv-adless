@@ -1,4 +1,4 @@
-package la.bsmith.adless
+package la.bsmith.launcher
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background

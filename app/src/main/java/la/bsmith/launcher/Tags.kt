@@ -1,4 +1,4 @@
-package la.bsmith.adless
+package la.bsmith.launcher
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
