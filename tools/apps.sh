@@ -38,10 +38,12 @@ HELP
 
 # "package<tab>name" for each installed app with a launcher icon, TV or
 # phone (Tubi has only the phone one), sorted by name. That leaves out
-# Amazon's overlay packages, the launcher and Home on Fire.
+# Amazon's overlay packages, the launcher, Home on Fire and old launcher
+# builds (firetv's Remove old launcher builds names those).
 installed_tsv() {
-    local installed launchable="" category pkg
+    local installed launchable="" category pkg old
     local -a pkgs=()
+    old="$(grep -v -E '^[[:space:]]*(#|$)' packages-old-launchers.txt)"
     installed="$(tv shell pm list packages -3 | tr -d '\r')"
     for category in LEANBACK_LAUNCHER LAUNCHER; do
         launchable+="$(tv shell cmd package query-activities --brief \
@@ -50,6 +52,7 @@ installed_tsv() {
     done
     while read -r pkg; do
         [[ -n "${pkg}" && "${pkg}" != "${LAUNCHER_PKG}" && "${pkg}" != "${HOF}" ]] || continue
+        ! grep -qxF "${pkg}" <<< "${old}" || continue
         grep -qxF "package:${pkg}" <<< "${installed}" && pkgs+=("${pkg}")
     done <<< "$(sort -u <<< "${launchable}")"
     (( ${#pkgs[@]} > 0 )) || return 0

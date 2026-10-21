@@ -6,9 +6,46 @@
 # shellcheck source=ui.sh
 source "$(dirname "${BASH_SOURCE[0]}")/ui.sh"
 
-[[ -n "${FIRETV_HOST:-}" ]] || die "Set FIRETV_HOST to the TV's IP, e.g. export FIRETV_HOST=192.168.1.20"
-TV="${FIRETV_HOST}"
-[[ "${TV}" == *:* ]] || TV="${TV}:5555"
+# The TV: FIRETV_HOST (IP, or IP:port), else the one ask_host saved, else
+# asked for now.
+FIRETV_HOST_FILE="${XDG_CONFIG_HOME:-${HOME}/.config}/firetv/host"
+
+# Sets TV, the address adb uses, from a host; adb's port is 5555.
+set_tv() {
+    TV="$1"
+    [[ "${TV}" == *:* ]] || TV="${TV}:5555"
+}
+
+# Asks for the TV's IP, offering the current one, and saves it so later
+# runs need not ask. FIRETV_HOST_ASKED tells the caller it was just typed.
+ask_host() {
+    local host="" header="TV IP (Settings > My Fire TV > About > Network)"
+    case "$(prompt_mode)" in
+        gum) host="$(gum input --header "${header}" --placeholder "192.168.1.20" --value "${FIRETV_HOST:-}")" || exit 1 ;;
+        *)
+            [[ -t 0 ]] || die "No TV set up: export FIRETV_HOST=<tv-ip>, or run firetv setup"
+            printf '%s: ' "${header}" >&2
+            IFS= read -r host || true
+            ;;
+    esac
+    host="${host//[[:space:]]/}"
+    [[ -n "${host}" ]] || die "No TV IP given"
+    mkdir -p "$(dirname "${FIRETV_HOST_FILE}")"
+    printf '%s\n' "${host}" > "${FIRETV_HOST_FILE}"
+    export FIRETV_HOST="${host}"
+    # shellcheck disable=SC2034  # read by firetv
+    FIRETV_HOST_ASKED=true
+    set_tv "${host}"
+}
+
+[[ -n "${FIRETV_HOST:-}" ]] || FIRETV_HOST="$(cat "${FIRETV_HOST_FILE}" 2>/dev/null || true)"
+if [[ -n "${FIRETV_HOST}" ]]; then
+    # Exported, so the scripts this one runs use the same TV without asking.
+    export FIRETV_HOST
+    set_tv "${FIRETV_HOST}"
+else
+    ask_host
+fi
 
 tv() { adb -s "${TV}" "$@" < /dev/null; }
 
@@ -80,6 +117,33 @@ connect() {
             || die "No route to the TV at ${TV}. If it answers ping, this terminal app needs Local Network access: System Settings > Privacy & Security > Local Network, then reopen the terminal"
     fi
     [[ "$(tv get-state 2>/dev/null)" == device ]] || die "The TV at ${TV} is not connected and authorized (ADB debugging on? accept the prompt on the TV)"
+}
+
+# Installs the launcher's APK. A launcher on the TV signed with another key
+# (the debug-key releases up to v0.2, or a build from another computer)
+# cannot be updated in place, so it is replaced, asking first: that clears
+# its favorites, hidden apps and theme. When it is Home through
+# make-home.sh, Amazon's home stands in while it is replaced.
+install_launcher() {
+    local apk="$1" out was_home=false tools
+    tools="$(dirname "${BASH_SOURCE[0]}")"
+    # shellcheck disable=SC2016  # $1 and $2 expand in the inner sh
+    out="$(spin_out "Installing the launcher on ${TV}" sh -c 'adb -s "$1" install -r "$2" 2>&1' _ "${TV}" "${apk}")" && return 0
+    if [[ "${out}" != *INSTALL_FAILED_UPDATE_INCOMPATIBLE* ]]; then
+        printf '%s\n' "${out}" >&2
+        die "Could not install the launcher"
+    fi
+    log_warn "The launcher on the TV is signed with a different key (an older release, or a build from another computer), so it cannot be updated in place."
+    confirm "Replace it? Its favorites, hidden apps and theme are cleared." || die "Not installed; the old launcher is still on the TV"
+    if [[ "$(state com.amazon.tv.launcher)" == disabled ]]; then
+        was_home=true
+        "${tools}/restore-home.sh"
+    fi
+    tv uninstall la.bsmith.launcher | tr -d '\r'
+    # shellcheck disable=SC2016  # $1 and $2 expand in the inner sh
+    out="$(spin_out "Installing the launcher on ${TV}" sh -c 'adb -s "$1" install "$2" 2>&1' _ "${TV}" "${apk}")" \
+        || { printf '%s\n' "${out}" >&2; die "Could not install the launcher"; }
+    [[ "${was_home}" == false ]] || "${tools}/make-home.sh"
 }
 
 # "enabled", "disabled", or "absent".

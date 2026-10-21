@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # One menu for everything the tools do: check the TV, install the launcher,
 # make it Home, debloat, tweak, add and remove apps (Appstore or APK),
-# clean, reboot, and reset. Wraps the scripts beside it. With a command (firetv doctor), runs
-# that one step without the menu; see firetv --help.
+# clean, reboot, and reset. Wraps the scripts beside it. firetv setup walks
+# a first-time user through the TV, connecting and the setup steps in
+# order. With another command (firetv doctor), runs that one step without
+# the menu; see firetv --help.
 set -euo pipefail
 # Where the user ran this from, for APK paths they type relative to it.
 START_DIR="${PWD}"
@@ -10,7 +12,6 @@ cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 # shellcheck source=ui.sh
 source ./ui.sh
 
-REPO="smithbr/firetv-adless"
 LAUNCHER_PKG="la.bsmith.launcher"
 HOF="io.github.toolicious.homeonfire"
 HOF_SERVICE="${HOF}/.HijackService"
@@ -29,6 +30,7 @@ Set up and look after the Fire TV: with no command, a menu for every step.
 
 | Command | What it does |
 |---|---|
+| `setup` | Walk through setting up the TV, step by step |
 | `doctor` | Check the connection, launcher, core packages, debloat and storage |
 | `apps` | List the installed apps and where each came from |
 | `add APP` | Get an app from the Appstore: a name, package, ASIN or amazon.com link |
@@ -36,21 +38,26 @@ Set up and look after the Fire TV: with no command, a menu for every step.
 | `tweaks` | List the tweaks, each on, off or partly on |
 | `tweak NAME on\|off` | Apply a tweak; off puts back the values it replaced |
 | `clean` | Trim app caches and show the storage freed |
+| `old-builds [--yes\|--list]` | Uninstall old, debug and devicetest launcher builds |
 | `reboot` | Restart the TV |
 | `disconnect` | Drop the adb connection |
 
-The TV is `FIRETV_HOST` (IP, or IP:port).
+The TV is the IP that `setup` or the menu asked for, or `FIRETV_HOST`
+(IP, or IP:port) when set.
 EOF
 }
 
 # Commands that skip the menu. Each script connects and takes the TV lock.
+MODE=menu
 case "${1:-}" in
     "") ;;
+    setup) MODE=setup ;;
     -h|--help|help) usage; exit 0 ;;
     doctor) exec ./doctor.sh ;;
     apps) shift; exec ./apps.sh list "$@" ;;
     add|remove) exec ./apps.sh "$@" ;;
     clean) exec ./clean.sh ;;
+    old-builds) shift; exec ./remove-old-launchers.sh "$@" ;;
     tweaks) exec ./tweak.sh ;;
     tweak) shift; exec ./tweak.sh "$@" ;;
     reboot)
@@ -74,16 +81,7 @@ esac
 # it wraps cover the non-interactive cases.
 command -v gum >/dev/null 2>&1 || die "gum not found: brew install gum"
 [[ -t 0 && -t 1 ]] || die "firetv is interactive; run it in a terminal"
-
-if [[ -z "${FIRETV_HOST:-}" ]]; then
-    FIRETV_HOST="$(gum input --header "TV IP (Settings > My Fire TV > About > Network)" --placeholder "192.168.1.20")" || exit 1
-    [[ -n "${FIRETV_HOST}" ]] || die "No TV IP given"
-    export FIRETV_HOST
-    log_info "Tip: export FIRETV_HOST=${FIRETV_HOST} to skip this prompt."
-fi
-# shellcheck source=adb.sh
-source ./adb.sh
-command -v adb >/dev/null 2>&1 || die "adb not found: brew install --cask android-platform-tools"
+command -v adb >/dev/null 2>&1 || die "adb not found: run tools/setup.sh, or brew install --cask android-platform-tools"
 
 # Runs one menu action in a subshell, so die and the TV lock end with the
 # action and the menu carries on. Not "( ... ) || warn": bash ignores set -e
@@ -107,13 +105,23 @@ version() {
     tv shell dumpsys package "$1" | tr -d '\r' | sed -n 's/^ *versionName=//p' | head -1
 }
 
+# True when this computer can build the launcher: setup.sh --build pointed
+# the build at an Android SDK, or ANDROID_HOME names one.
+can_build() {
+    grep -q '^sdk\.dir=' ../local.properties 2>/dev/null || [[ -n "${ANDROID_HOME:-}" ]]
+}
+
+# Downloads the latest release; on a computer that can build, building here
+# is offered too.
 do_install() {
-    local how
+    local how=Download
     connect
     if [[ "$(state "${LAUNCHER_PKG}")" != absent ]]; then
         confirm "The launcher $(version "${LAUNCHER_PKG}") is already installed. Reinstall or update it?" || return 0
     fi
-    how="$(gum choose --header "Install the launcher" "Download the latest release" "Build it here (tools/install.sh)")" || return 0
+    if can_build; then
+        how="$(gum choose --header "Install the launcher" "Download the latest release" "Build it here (tools/install.sh)")" || return 0
+    fi
     if [[ "${how}" == Build* ]]; then
         ./install.sh --launch
         return
@@ -127,8 +135,8 @@ do_install() {
     spin "Downloading launcher.apk" sh -c '
         { command -v gh >/dev/null 2>&1 && gh release download --repo "$1" --pattern launcher.apk --dir "$2"; } \
             || curl -fsSL -o "$2/launcher.apk" "https://github.com/$1/releases/latest/download/launcher.apk"' _ "${REPO}" "${tmp}" \
-        || die "Could not download launcher.apk from https://github.com/${REPO}/releases/latest"
-    spin "Installing the launcher on ${TV}" adb -s "${TV}" install -r "${tmp}/launcher.apk"
+        || die "Could not download launcher.apk from https://github.com/${REPO}/releases/latest. While the repo is private, run tools/setup.sh to sign in to GitHub."
+    install_launcher "${tmp}/launcher.apk"
     tv shell am start -n "${LAUNCHER_PKG}/.MainActivity" >/dev/null
     _success "Installed the launcher and opened it on the TV."
 }
@@ -157,9 +165,12 @@ do_home() {
 
 # Checklist of packages-disabled.txt: ticked means disabled. Ticked packages
 # that are enabled get disabled, unticked ones that are disabled get enabled.
+# gum cannot relabel a row as it is toggled, so each row says what Enter
+# does either way.
 do_debloat() {
     local all off line pkg group="" st picked listed="" disable="" enable="" missing=""
-    local -a opts=()
+    local width=0 index what
+    local -a opts=() pkgs=() groups=() states=()
     connect
     # Two adb calls for the whole list; state() would take two per package.
     all="$(spin_out "Reading the TV's packages" adb -s "${TV}" shell pm list packages | tr -d '\r')"
@@ -181,13 +192,22 @@ do_debloat() {
         fi
         st=enabled
         grep -qxF "package:${pkg}" <<< "${off}" && st=disabled
-        opts+=("$(printf '%-38s %-10s %s' "${pkg}" "${group}" "${st}")"$'\t'"${pkg}")
+        pkgs+=("${pkg}")
+        groups+=("${group}")
+        states+=("${st}")
+        (( ${#pkg} <= width )) || width=${#pkg}
         listed="${listed} ${pkg}"
     done < packages-disabled.txt
     [[ -z "${missing}" ]] || log_info "Not on this TV:${missing}"
-    (( ${#opts[@]} > 0 )) || die "None of packages-disabled.txt is on this TV"
+    (( ${#pkgs[@]} > 0 )) || die "None of packages-disabled.txt is on this TV"
+    for index in "${!pkgs[@]}"; do
+        what="off → on if unticked"
+        [[ "${states[${index}]}" == enabled ]] && what="on → off if ticked"
+        opts+=("$(printf '%-*s  %-9s  %s' "${width}" "${pkgs[${index}]}" "${groups[${index}]}" "${what}")"$'\t'"${pkgs[${index}]}")
+    done
 
-    picked="$(choose_many --selected "${listed}" "Ticked packages get disabled, unticked ones enabled" "${opts[@]}")" || return 0
+    picked="$(choose_many --selected "${listed}" "A tick means off (disabled). Every package starts ticked.
+Untick one to keep it on, or to turn it back on." "${opts[@]}")" || return 0
     for pkg in ${listed}; do
         st=enabled
         grep -qxF "package:${pkg}" <<< "${off}" && st=disabled
@@ -248,16 +268,17 @@ do_reboot() {
     _success "The TV is restarting."
 }
 
-# Get an app from the Appstore, sideload an APK, or uninstall apps. The
-# launcher and Home on Fire are left to Reset, which removes them in order.
+# Get an app from the Appstore, sideload an APK, uninstall apps, or
+# uninstall old launcher builds. The launcher and Home on Fire are left to
+# Reset, which removes them in order.
 do_apps() {
     local what
-    what="$(gum choose --header "Add/Remove Apps" "Get an app from the Appstore" "Add an app (APK file)" "Remove apps")" || return 0
-    connect
+    what="$(gum choose --header "Add/Remove Apps" "Get an app from the Appstore" "Add an app (APK file)" "Remove apps" "Remove old launcher builds")" || return 0
     case "${what}" in
-        Get*) store_app ;;
-        Add*) add_app ;;
-        *) remove_apps ;;
+        Get*) connect; store_app ;;
+        Add*) connect; add_app ;;
+        "Remove apps") connect; remove_apps ;;
+        *) ./remove-old-launchers.sh ;;
     esac
 }
 
@@ -324,6 +345,89 @@ do_reset() {
         ./restore-debloat.sh
     fi
 }
+
+# Connects, walking through what the TV still needs: allowing this
+# computer, ADB debugging, Local Network access, or a different IP.
+wait_for_tv() {
+    local out st next
+    while true; do
+        out="$(adb_connect)"
+        if [[ "${out}" == *"No route to host"* ]]; then
+            adb kill-server >/dev/null 2>&1 || true
+            out="$(adb_connect)"
+        fi
+        st="$(tv get-state 2>&1 || true)"
+        case "${st}" in
+            device)
+                _check "Connected to ${TV}"
+                return 0
+                ;;
+            *unauthorized*|*offline*)
+                log_info "On the TV: tick Always allow from this computer, then select OK."
+                # shellcheck disable=SC2016  # $1 expands in the inner sh
+                if spin "Waiting for the TV to allow this computer" sh -c '
+                    i=0
+                    until [ "$(adb -s "$1" get-state 2>/dev/null)" = device ]; do
+                        i=$((i + 1)); [ "${i}" -le 120 ] || exit 1; sleep 1
+                    done' _ "${TV}"; then
+                    _check "Connected to ${TV}"
+                    return 0
+                fi
+                ;;
+            *)
+                case "${out}" in
+                    *"No route to host"*) log_warn "This terminal app needs Local Network access: System Settings > Privacy & Security > Local Network, then reopen the terminal." ;;
+                    *refused*) log_warn "${TV} refused the connection: turn on ADB debugging in Developer options." ;;
+                    *) log_warn "No answer from ${TV}: check the IP, and that the TV is on and on this network." ;;
+                esac
+                ;;
+        esac
+        next="$(gum choose --header "Not connected yet" "Try again" "Change the IP" "Quit")" || exit 0
+        case "${next}" in
+            Change*) ask_host ;;
+            Quit) exit 0 ;;
+        esac
+    done
+}
+
+# One step of the walkthrough. A step that fails or is declined leaves the
+# rest to run; each says what it needs.
+walk_step() {
+    local title="$1"
+    shift
+    printf '\n'
+    _header "${title}"
+    run "$@"
+}
+
+# What only the remote can do: Developer options, ADB debugging, the IP.
+show_tv_steps() {
+    _header "Set up the Fire TV"
+    _box "On the TV, with the remote:
+1. Settings > My Fire TV. If there is no Developer options, open
+   About and press OK on the device name 7 times.
+2. Developer options: turn on ADB debugging and Apps from Unknown
+   Sources.
+3. About > Network: note the TV's IP address."
+    confirm "Done on the TV?" || { log_info "Run firetv setup again when it is."; exit 0; }
+}
+
+[[ "${MODE}" != setup ]] || show_tv_steps
+# Asks for the TV's IP unless one is saved or FIRETV_HOST is set.
+# shellcheck source=adb.sh
+source ./adb.sh
+
+if [[ "${MODE}" == setup ]]; then
+    [[ "${FIRETV_HOST_ASKED:-}" == true ]] || confirm "Use the TV at ${TV}?" || ask_host
+    wait_for_tv
+    walk_step "Step 1 of 4: Install the launcher" do_install
+    walk_step "Step 2 of 4: Make it the Home app" do_home
+    walk_step "Step 3 of 4: Debloat" do_debloat
+    walk_step "Step 4 of 4: Check everything" do_doctor
+    printf '\n'
+    _success "Set up. Run firetv any time for the menu."
+    exit 0
+fi
 
 while true; do
     _header "Launcher: TV ${TV}"

@@ -1,4 +1,5 @@
-# What the tools' output adds to lib.sh. lib.sh is a verbatim copy of
+# What the tools add to lib.sh: output helpers and the repo the launcher's
+# releases come from. lib.sh is a verbatim copy of
 # scripts/common.sh in the author's dotfiles: never edit it here, copy it
 # over again. A helper here that a dotfiles script comes to need moves there.
 # shellcheck shell=bash
@@ -9,6 +10,9 @@ _UI_SH=1
 
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+# shellcheck disable=SC2034  # used by the scripts that source this
+REPO="smithbr/firetv-adless"
 
 # Like spin, but the command's stdout passes through, for capturing it:
 #   packages="$(spin_out "Reading the TV's packages" adb shell pm list packages)"

@@ -1,0 +1,76 @@
+# Publishes a release when main's versionName has no tag yet, so bumping
+# versionName and versionCode in app/build.gradle.kts is the whole release
+# step. The APK is signed with the release key from the repo's Actions
+# secrets (tools/release-key.sh --github), and the notes list the commits
+# since the last release.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [app/build.gradle.kts]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Read the version
+        id: version
+        run: |
+          version="$(sed -n 's/^ *versionName = "\(.*\)"$/\1/p' app/build.gradle.kts)"
+          [ -n "${version}" ] || { echo "::error::No versionName in app/build.gradle.kts"; exit 1; }
+          echo "tag=v${version}" >> "${GITHUB_OUTPUT}"
+          if git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
+            echo "v${version} is already released; nothing to do."
+            echo "new=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "new=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - uses: actions/setup-java@v6
+        if: steps.version.outputs.new == 'true'
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build the signed APK
+        if: steps.version.outputs.new == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.LAUNCHER_KEYSTORE_BASE64 }}
+          LAUNCHER_KEYSTORE_PASSWORD: ${{ secrets.LAUNCHER_KEYSTORE_PASSWORD }}
+        run: |
+          [ -n "${KEYSTORE_BASE64}" ] && [ -n "${LAUNCHER_KEYSTORE_PASSWORD}" ] \
+            || { echo "::error::No release key: run tools/release-key.sh --github"; exit 1; }
+          export LAUNCHER_KEYSTORE="${RUNNER_TEMP}/release.p12"
+          printf '%s' "${KEYSTORE_BASE64}" | base64 -d > "${LAUNCHER_KEYSTORE}"
+          ./gradlew --console=plain :app:assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "${RUNNER_TEMP}/launcher.apk"
+          rm -f "${LAUNCHER_KEYSTORE}"
+
+      - name: Publish the release
+        if: steps.version.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          previous="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          {
+            echo "Install or update with \`firetv setup\` or the firetv menu; see the README."
+            echo
+            if [ -n "${previous}" ]; then
+              echo "Changes since ${previous}:"
+              git log --no-merges --format='- %s' "${previous}..HEAD"
+            fi
+          } > "${RUNNER_TEMP}/notes.md"
+          gh release create "${TAG}" "${RUNNER_TEMP}/launcher.apk" \
+            --target "${GITHUB_SHA}" --title "${TAG}" --notes-file "${RUNNER_TEMP}/notes.md"
