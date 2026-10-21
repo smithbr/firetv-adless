@@ -22,7 +22,7 @@ STEPS=(
     "setup;;walk through setting up the TV, step by step"
     "install;;put the launcher on the TV, clear old builds and make it Home"
     "tune;[NAME on|off];disable Amazon's ad apps and apply speed tweaks"
-    "apps;[list|add APP|remove APP...];get apps from the Appstore, sideload or uninstall"
+    "apps;[list|add APP|remove [APP...]];get apps from the Appstore, sideload or uninstall"
     "clean;;trim app caches and remove old launcher builds"
     "reboot;;restart the TV"
     "reset;;remove the launcher and restore Amazon's home"
@@ -291,7 +291,7 @@ do_apps() {
     case "${what}" in
         Get*) store_app ;;
         Add*) add_app ;;
-        *) remove_apps ;;
+        *) ./apps.sh remove ;;
     esac
 }
 
@@ -321,22 +321,6 @@ add_app() {
     [[ "${apk}" == *.apk ]] || die "Not an .apk file: ${apk}"
     spin "Installing $(basename "${apk}") on ${TV}" adb -s "${TV}" install -r "${apk}"
     _success "Installed $(basename "${apk}")."
-}
-
-# Checklist of the installed apps (apps.sh list); apps.sh confirms and
-# uninstalls the ticked ones.
-remove_apps() {
-    local names picked pkg name
-    local -a opts=() pkgs=()
-    names="$(./apps.sh list --tsv)"
-    [[ -n "${names}" ]] || { log_info "No installed apps to remove."; return 0; }
-    while IFS=$'\t' read -r pkg name; do
-        opts+=("$(printf '%-24s %s' "${name}" "${pkg}")"$'\t'"${pkg}")
-    done <<< "${names}"
-    picked="$(choose_many "Ticked apps get uninstalled (the launcher and Home on Fire: use Reset)" "${opts[@]}")" || return 0
-    [[ -n "${picked}" ]] || { log_info "Nothing to remove."; return 0; }
-    while read -r pkg; do pkgs+=("${pkg}"); done <<< "${picked}"
-    ./apps.sh remove "${pkgs[@]}"
 }
 
 # The README's reset steps, in its order. A step that fails stops the rest:

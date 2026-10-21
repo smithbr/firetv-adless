@@ -3,7 +3,8 @@
 #   apps.sh list [--tsv]    installed apps; --tsv: "package<tab>name" by name
 #   apps.sh add APP         APP: a name from appstore.txt, a package, an
 #                           ASIN (B0...) or an amazon.com link to the app
-#   apps.sh remove APP...   APP: an installed app's name or package
+#   apps.sh remove [APP...] APP: an installed app's name or package; with
+#                           none, a checklist of the installed apps
 # add opens the app's Appstore page on the TV and presses OK only when the
 # button is a free Get or Download; a price, a subscription or anything
 # else is left on the TV for you.
@@ -25,14 +26,15 @@ usage() {
 
     firetv apps list         list the installed apps
     firetv apps add APP      get APP from the Appstore
-    firetv apps remove APP   uninstall apps (one or more)
+    firetv apps remove [APP...]   uninstall apps, or tick them in a list
 
 `add` takes a name from `tools/appstore.txt`, a package
 (`tv.pluto.android`), an ASIN (`B00KDSGIPK`) or the app's amazon.com link.
 It presses OK on the TV only for a free **Get** or **Download**; for a price
 or a subscription it leaves the app's page open on the TV.
 
-`remove` takes a name or a package and asks before uninstalling.
+`remove` takes names or packages, or with none shows a checklist of the
+installed apps, and asks before uninstalling.
 HELP
 }
 
@@ -215,10 +217,24 @@ do_add() {
     done <<< "${added}"
 }
 
+# Reads the TV's apps once, for the checklist or for matching the names
+# given, then confirms and uninstalls.
 do_remove() {
     local apps app found pkg name picked="" out
+    local -a opts=()
+    (( $# > 0 )) || [[ -t 0 ]] || die "Name the apps to remove: firetv apps remove APP... (firetv apps list shows them)"
     connect
     apps="$(spin_out "Reading the TV's apps" installed_tsv)"
+    [[ -n "${apps}" ]] || { log_info "No installed apps to remove."; return 0; }
+    if (( $# == 0 )); then
+        while IFS=$'\t' read -r pkg name; do
+            opts+=("$(printf '%-24s %s' "${name}" "${pkg}")"$'\t'"${pkg}")
+        done <<< "${apps}"
+        found="$(choose_many "Ticked apps get uninstalled (the launcher and Home on Fire: use Reset)" "${opts[@]}")" || return 0
+        [[ -n "${found}" ]] || { log_info "Nothing to remove."; return 0; }
+        # The ticked packages' "package<tab>name" lines.
+        picked="$(awk -F '\t' 'NR == FNR { want[$1]; next } $1 in want' - <(printf '%s\n' "${apps}") <<< "${found}")"$'\n'
+    fi
     for app in "$@"; do
         if [[ "${app}" == "${LAUNCHER_PKG}" || "${app}" == "${HOF}" ]]; then
             die "${app}: remove the launcher and Home on Fire with Reset in firetv"
@@ -254,7 +270,6 @@ case "${1:-}" in
         do_add "$2"
         ;;
     remove)
-        [[ $# -ge 2 ]] || die "Usage: firetv apps remove APP... (see firetv apps --help)"
         shift
         do_remove "$@"
         ;;

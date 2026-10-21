@@ -108,6 +108,7 @@ firetv apps list                   # what's installed, and from where
 firetv apps add netflix            # a name from tools/appstore.txt
 firetv apps add tv.pluto.android   # or a package, ASIN or amazon.com link
 firetv apps remove netflix
+firetv apps remove                 # a checklist of what's installed
 ```
 
 `add` opens the app's Appstore page on the TV and presses OK only for a free
