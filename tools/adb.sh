@@ -6,9 +6,46 @@
 # shellcheck source=ui.sh
 source "$(dirname "${BASH_SOURCE[0]}")/ui.sh"
 
-[[ -n "${FIRETV_HOST:-}" ]] || die "Set FIRETV_HOST to the TV's IP, e.g. export FIRETV_HOST=192.168.1.20"
-TV="${FIRETV_HOST}"
-[[ "${TV}" == *:* ]] || TV="${TV}:5555"
+# The TV: FIRETV_HOST (IP, or IP:port), else the one ask_host saved, else
+# asked for now.
+FIRETV_HOST_FILE="${XDG_CONFIG_HOME:-${HOME}/.config}/firetv/host"
+
+# Sets TV, the address adb uses, from a host; adb's port is 5555.
+set_tv() {
+    TV="$1"
+    [[ "${TV}" == *:* ]] || TV="${TV}:5555"
+}
+
+# Asks for the TV's IP, offering the current one, and saves it so later
+# runs need not ask. FIRETV_HOST_ASKED tells the caller it was just typed.
+ask_host() {
+    local host="" header="TV IP (Settings > My Fire TV > About > Network)"
+    case "$(prompt_mode)" in
+        gum) host="$(gum input --header "${header}" --placeholder "192.168.1.20" --value "${FIRETV_HOST:-}")" || exit 1 ;;
+        *)
+            [[ -t 0 ]] || die "No TV set up: export FIRETV_HOST=<tv-ip>, or run firetv setup"
+            printf '%s: ' "${header}" >&2
+            IFS= read -r host || true
+            ;;
+    esac
+    host="${host//[[:space:]]/}"
+    [[ -n "${host}" ]] || die "No TV IP given"
+    mkdir -p "$(dirname "${FIRETV_HOST_FILE}")"
+    printf '%s\n' "${host}" > "${FIRETV_HOST_FILE}"
+    export FIRETV_HOST="${host}"
+    # shellcheck disable=SC2034  # read by firetv
+    FIRETV_HOST_ASKED=true
+    set_tv "${host}"
+}
+
+[[ -n "${FIRETV_HOST:-}" ]] || FIRETV_HOST="$(cat "${FIRETV_HOST_FILE}" 2>/dev/null || true)"
+if [[ -n "${FIRETV_HOST}" ]]; then
+    # Exported, so the scripts this one runs use the same TV without asking.
+    export FIRETV_HOST
+    set_tv "${FIRETV_HOST}"
+else
+    ask_host
+fi
 
 tv() { adb -s "${TV}" "$@" < /dev/null; }
 

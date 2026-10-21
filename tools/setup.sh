@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Set up this computer for the tools: adb, gum, and the firetv command on
-# PATH: all that installing the released APK needs. --build also sets up
-# building the launcher here: Temurin, the Android SDK and its licenses, and
-# sdk.dir in local.properties, so no ANDROID_HOME is needed. Safe to run
-# again: each step skips what is already done. FIRETV_BIN picks where
-# firetv is linked (default ~/.local/bin).
+# Set up this computer for the tools: Homebrew if it is missing, adb, gum,
+# and the firetv command on PATH: all that installing the released APK
+# needs. Then it offers to carry on with firetv setup, which walks through
+# the TV. --build also sets up building the launcher here: Temurin, the
+# Android SDK and its licenses, and sdk.dir in local.properties, so no
+# ANDROID_HOME is needed. Safe to run again: each step skips what is already
+# done. FIRETV_BIN picks where firetv is linked (default ~/.local/bin).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 source ./ui.sh
@@ -16,6 +17,33 @@ BIN="${FIRETV_BIN:-${HOME}/.local/bin}"
 # COMMAND on PATH (- for none) means it came some other way and is kept.
 RUN_PKGS=("formula gum gum" "cask android-platform-tools adb")
 BUILD_PKGS=("cask temurin -" "cask android-commandlinetools sdkmanager")
+
+# Homebrew's brew, also when its shellenv is not in this shell yet.
+find_brew() {
+    local brew
+    for brew in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+        [[ -x "${brew}" ]] && { printf '%s\n' "${brew}"; return 0; }
+    done
+    return 1
+}
+
+# Installs Homebrew, asking first, unless it is there; puts it on PATH for
+# this run, and in the shell profile when new terminals would not find it.
+setup_brew() {
+    local brew on_path=true
+    command -v brew >/dev/null 2>&1 || on_path=false
+    if ! brew="$(command -v brew || find_brew)"; then
+        printf 'Homebrew installs adb and gum. Its installer asks for your password and may install Apple'"'"'s Command Line Tools.\n'
+        confirm "Install Homebrew (https://brew.sh)?" || die "Homebrew is needed: https://brew.sh"
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        brew="$(find_brew)" || die "Homebrew did not install; see https://brew.sh"
+    fi
+    # bash, or brew writes for the login shell, which may be fish.
+    eval "$("${brew}" shellenv bash)"
+    _check "Homebrew"
+    [[ "${on_path}" == true ]] \
+        || add_to_profile "Homebrew" "brew shellenv" "eval \"\$(${brew} shellenv)\"" "${brew} shellenv | source"
+}
 
 # Installs each "KIND NAME COMMAND" not installed yet.
 brew_install() {
@@ -93,7 +121,64 @@ link_firetv() {
         ln -s "${target}" "${link}"
         _check "firetv linked in ${BIN}"
     fi
-    [[ ":${PATH}:" == *":${BIN}:"* ]] || _caution "${BIN} is not on PATH; add it to run firetv from anywhere"
+}
+
+# The startup file of the user's login shell, where a PATH line belongs;
+# empty for a shell this does not know.
+shell_profile() {
+    case "${SHELL##*/}" in
+        zsh)
+            # Asks zsh, since ZDOTDIR may be set in its zshenv and not here.
+            # shellcheck disable=SC2016  # expands in zsh
+            zsh -c 'printf "%s/.zshrc\n" "${ZDOTDIR:-${HOME}}"'
+            ;;
+        bash)
+            # Terminal on macOS opens login shells, which read .bash_profile.
+            case "${OSTYPE}" in
+                darwin*) printf '%s/.bash_profile\n' "${HOME}" ;;
+                *) printf '%s/.bashrc\n' "${HOME}" ;;
+            esac
+            ;;
+        fish) printf '%s/fish/config.fish\n' "${XDG_CONFIG_HOME:-${HOME}/.config}" ;;
+    esac
+}
+
+# Puts WHAT on PATH for new terminals: appends a line to the shell profile,
+# asking first, unless the profile already has NEEDLE. SH_LINE is for zsh
+# and bash, FISH_LINE for fish.
+#   add_to_profile WHAT NEEDLE SH_LINE FISH_LINE
+add_to_profile() {
+    local what="$1" needle="$2" line="$3" profile where tilde="~"
+    profile="$(shell_profile)"
+    if [[ -z "${profile}" ]]; then
+        _caution "To put ${what} on PATH, add this to your shell's startup file: ${line}"
+        return 0
+    fi
+    [[ "${profile}" != *.fish ]] || line="$4"
+    where="${profile/#"${HOME}"/${tilde}}"
+    if grep -qF "${needle}" "${profile}" 2>/dev/null; then
+        _check "${where} puts ${what} on PATH"
+        return 0
+    fi
+    if ! confirm "Put ${what} on PATH in ${where}, so new terminals find it?"; then
+        _caution "${what} is not on PATH in new terminals"
+        return 0
+    fi
+    mkdir -p "$(dirname "${profile}")"
+    printf '\n# firetv-adless: %s on PATH\n%s\n' "${what}" "${line}" >> "${profile}"
+    _check "Put ${what} on PATH in ${where}"
+}
+
+# Puts BIN on PATH in the shell profile unless it is on PATH already.
+add_bin_to_path() {
+    local shown
+    [[ ":${PATH}:" == *":${BIN}:"* ]] && return 0
+    # $HOME, not the expanded path, so the line reads the same in any account.
+    shown="${BIN/#"${HOME}"/\$HOME}"
+    # The needle is the part after $HOME, so ~/.local/bin and
+    # ${HOME}/.local/bin in the profile match too.
+    add_to_profile "firetv (${shown})" "${BIN#"${HOME}"}" \
+        "export PATH=\"${shown}:\$PATH\"" "fish_add_path \"${shown}\""
 }
 
 main() {
@@ -107,7 +192,7 @@ main() {
     _header "Setting up for firetv"
     case "${OSTYPE}" in
         darwin*)
-            command -v brew >/dev/null 2>&1 || die "Homebrew not found: https://brew.sh"
+            setup_brew
             brew_install "${RUN_PKGS[@]}"
             [[ "${build}" == false ]] || brew_install "${BUILD_PKGS[@]}"
             ;;
@@ -120,8 +205,13 @@ main() {
     esac
     [[ "${build}" == false ]] || setup_sdk
     link_firetv
+    add_bin_to_path
 
-    _success "Set up. Run firetv to connect to the TV and install the launcher."
+    _success "This computer is set up."
+    if [[ -t 0 && -t 1 ]] && tool_installed gum && confirm "Set up the TV now?"; then
+        exec "${ROOT}/tools/firetv" setup
+    fi
+    log_info "Run firetv setup to set up the TV, or firetv for the menu (in a new terminal if PATH just changed)."
 }
 
 main "$@"

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # One menu for everything the tools do: check the TV, install the launcher,
 # make it Home, debloat, tweak, add and remove apps, clean, reboot, and
-# reset. Wraps the scripts beside it. With a command (firetv doctor), runs
-# that one step without the menu; see firetv --help.
+# reset. Wraps the scripts beside it. firetv setup walks a first-time user
+# through the TV, connecting and the setup steps in order. With another
+# command (firetv doctor), runs that one step without the menu; see
+# firetv --help.
 set -euo pipefail
 # Where the user ran this from, for APK paths they type relative to it.
 START_DIR="${PWD}"
@@ -29,6 +31,7 @@ Set up and look after the Fire TV: with no command, a menu for every step.
 
 | Command | What it does |
 |---|---|
+| `setup` | Walk through setting up the TV, step by step |
 | `doctor` | Check the connection, launcher, core packages, debloat and storage |
 | `tweaks` | List the tweaks, each on, off or partly on |
 | `tweak NAME on\|off` | Apply a tweak; off puts back the values it replaced |
@@ -36,13 +39,16 @@ Set up and look after the Fire TV: with no command, a menu for every step.
 | `reboot` | Restart the TV |
 | `disconnect` | Drop the adb connection |
 
-The TV is `FIRETV_HOST` (IP, or IP:port).
+The TV is the IP that `setup` or the menu asked for, or `FIRETV_HOST`
+(IP, or IP:port) when set.
 EOF
 }
 
 # Commands that skip the menu. Each script connects and takes the TV lock.
+MODE=menu
 case "${1:-}" in
     "") ;;
+    setup) MODE=setup ;;
     -h|--help|help) usage; exit 0 ;;
     doctor) exec ./doctor.sh ;;
     clean) exec ./clean.sh ;;
@@ -69,16 +75,7 @@ esac
 # it wraps cover the non-interactive cases.
 command -v gum >/dev/null 2>&1 || die "gum not found: brew install gum"
 [[ -t 0 && -t 1 ]] || die "firetv is interactive; run it in a terminal"
-
-if [[ -z "${FIRETV_HOST:-}" ]]; then
-    FIRETV_HOST="$(gum input --header "TV IP (Settings > My Fire TV > About > Network)" --placeholder "192.168.1.20")" || exit 1
-    [[ -n "${FIRETV_HOST}" ]] || die "No TV IP given"
-    export FIRETV_HOST
-    log_info "Tip: export FIRETV_HOST=${FIRETV_HOST} to skip this prompt."
-fi
-# shellcheck source=adb.sh
-source ./adb.sh
-command -v adb >/dev/null 2>&1 || die "adb not found: brew install --cask android-platform-tools"
+command -v adb >/dev/null 2>&1 || die "adb not found: run tools/setup.sh, or brew install --cask android-platform-tools"
 
 # Runs one menu action in a subshell, so die and the TV lock end with the
 # action and the menu carries on. Not "( ... ) || warn": bash ignores set -e
@@ -331,6 +328,89 @@ do_reset() {
         ./restore-debloat.sh
     fi
 }
+
+# Connects, walking through what the TV still needs: allowing this
+# computer, ADB debugging, Local Network access, or a different IP.
+wait_for_tv() {
+    local out st next
+    while true; do
+        out="$(adb_connect)"
+        if [[ "${out}" == *"No route to host"* ]]; then
+            adb kill-server >/dev/null 2>&1 || true
+            out="$(adb_connect)"
+        fi
+        st="$(tv get-state 2>&1 || true)"
+        case "${st}" in
+            device)
+                _check "Connected to ${TV}"
+                return 0
+                ;;
+            *unauthorized*|*offline*)
+                log_info "On the TV: tick Always allow from this computer, then select OK."
+                # shellcheck disable=SC2016  # $1 expands in the inner sh
+                if spin "Waiting for the TV to allow this computer" sh -c '
+                    i=0
+                    until [ "$(adb -s "$1" get-state 2>/dev/null)" = device ]; do
+                        i=$((i + 1)); [ "${i}" -le 120 ] || exit 1; sleep 1
+                    done' _ "${TV}"; then
+                    _check "Connected to ${TV}"
+                    return 0
+                fi
+                ;;
+            *)
+                case "${out}" in
+                    *"No route to host"*) log_warn "This terminal app needs Local Network access: System Settings > Privacy & Security > Local Network, then reopen the terminal." ;;
+                    *refused*) log_warn "${TV} refused the connection: turn on ADB debugging in Developer options." ;;
+                    *) log_warn "No answer from ${TV}: check the IP, and that the TV is on and on this network." ;;
+                esac
+                ;;
+        esac
+        next="$(gum choose --header "Not connected yet" "Try again" "Change the IP" "Quit")" || exit 0
+        case "${next}" in
+            Change*) ask_host ;;
+            Quit) exit 0 ;;
+        esac
+    done
+}
+
+# One step of the walkthrough. A step that fails or is declined leaves the
+# rest to run; each says what it needs.
+walk_step() {
+    local title="$1"
+    shift
+    printf '\n'
+    _header "${title}"
+    run "$@"
+}
+
+# What only the remote can do: Developer options, ADB debugging, the IP.
+show_tv_steps() {
+    _header "Set up the Fire TV"
+    _box "On the TV, with the remote:
+1. Settings > My Fire TV. If there is no Developer options, open
+   About and press OK on the device name 7 times.
+2. Developer options: turn on ADB debugging and Apps from Unknown
+   Sources.
+3. About > Network: note the TV's IP address."
+    confirm "Done on the TV?" || { log_info "Run firetv setup again when it is."; exit 0; }
+}
+
+[[ "${MODE}" != setup ]] || show_tv_steps
+# Asks for the TV's IP unless one is saved or FIRETV_HOST is set.
+# shellcheck source=adb.sh
+source ./adb.sh
+
+if [[ "${MODE}" == setup ]]; then
+    [[ "${FIRETV_HOST_ASKED:-}" == true ]] || confirm "Use the TV at ${TV}?" || ask_host
+    wait_for_tv
+    walk_step "Step 1 of 4: Install the launcher" do_install
+    walk_step "Step 2 of 4: Make it the Home app" do_home
+    walk_step "Step 3 of 4: Debloat" do_debloat
+    walk_step "Step 4 of 4: Check everything" do_doctor
+    printf '\n'
+    _success "Set up. Run firetv any time for the menu."
+    exit 0
+fi
 
 while true; do
     _header "Launcher: TV ${TV}"

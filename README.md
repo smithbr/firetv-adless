@@ -9,67 +9,63 @@ Any Fire OS 6, 7 or 8 device should work.
 
 ## Install
 
-Set up this computer first:
+On a Mac, open Terminal and run:
 
 ```bash
-tools/setup.sh
+git clone https://github.com/smithbr/firetv-adless.git
+firetv-adless/tools/setup.sh
 ```
 
-It installs `adb` and [gum](https://github.com/charmbracelet/gum) with
-Homebrew (on Linux it lists what to install) and links `firetv` into
-`~/.local/bin`. `firetv` then runs the steps below from one menu.
+If macOS offers to install the command line developer tools, accept, then
+run the first line again.
 
-### Connect to the TV
+`setup.sh` installs [Homebrew](https://brew.sh) if it is missing, then
+`adb` and [gum](https://github.com/charmbracelet/gum), and offers to put
+Homebrew and the `firetv` command on PATH in your shell profile. On Linux
+it lists what to install instead. It ends by offering to set up the TV,
+which runs `firetv setup`:
 
-On the TV, in Settings > My Fire TV > About, press OK on the device name
-seven times to unlock Developer options, then turn on ADB debugging and Apps
-from Unknown Sources. Get the TV's IP from About > Network, connect, and
-accept the prompt on the TV:
+1. It shows what to turn on with the remote: Developer options, ADB
+   debugging and Apps from Unknown Sources.
+2. It asks for the TV's IP and remembers it, then waits while you accept
+   the debugging prompt on the TV.
+3. It installs the launcher, makes it Home, debloats and runs Doctor, in
+   that order. Each step asks before it changes anything.
 
-```bash
-export FIRETV_HOST=<tv-ip>:5555
-adb connect "$FIRETV_HOST"
-```
+Run `firetv setup` again any time, or `firetv` for the menu. To use a
+different TV for one command, set `FIRETV_HOST` to its IP.
 
 ### Install the app
 
-**Download it:** get `launcher.apk` from the
-[latest release](../../releases/latest) and install it:
+The walkthrough downloads `launcher.apk` from the
+[latest release](../../releases/latest). To build it instead:
 
-```bash
-adb install launcher.apk
-```
-
-**Or build it in [Android Studio](https://developer.android.com/studio):**
-open the project, set the build variant to `release` (Build > Select Build
-Variant), pick the TV in the device menu and press Run.
-
-**Or build it in a terminal:** `tools/setup.sh --build` adds
-[Temurin](https://adoptium.net) and the Android SDK, accepts the SDK
-licenses and points the build at the SDK; on Linux, install Temurin 17 to
-27 and Android's command-line tools, set `ANDROID_HOME` to the SDK, and run
-it the same way. Then `tools/install.sh --launch`.
+- **In [Android Studio](https://developer.android.com/studio):** open the
+  project, set the build variant to `release` (Build > Select Build
+  Variant), pick the TV in the device menu and press Run.
+- **In a terminal:** `tools/setup.sh --build` adds
+  [Temurin](https://adoptium.net) and the Android SDK, accepts the SDK
+  licenses and points the build at the SDK. On Linux, install Temurin 17
+  to 27 and Android's command-line tools and set `ANDROID_HOME` to the SDK
+  first. Then pick **Build it here** at the install step.
 
 Until it's Home, open it from Your Apps on Amazon's home screen.
 
 ### Make it Home
 
-```bash
-tools/make-home.sh
-```
-
-It asks before changing anything.
+The walkthrough's second step, or **Make Home** in the menu. It asks
+before changing anything.
 
 **Before Fire OS 8.1.6.9** it disables Amazon's launcher and sets this one as
 Home. Settings sections still open from the Settings row, but the full
 Settings menu is gone.
 
 **Fire OS 8.1.6.9 and later** block replacing Amazon's launcher without
-root, so the script changes nothing and offers
+root, so the step changes nothing and offers
 [Home on Fire](https://github.com/toolicious/home-on-fire) (GPL-3.0): an
 accessibility service that opens this launcher at boot and whenever Amazon's home
-appears. Run `tools/home-on-fire.sh`, then on the TV select **Choose target
-app…** and pick `Launcher`.
+appears. Accept it, then on the TV select **Choose target app…** and pick
+`Launcher`.
 
 Home then reaches this launcher after about 2.5 s (4 to 5 s after a reboot), with
 Amazon's home showing meanwhile. Long-press and double-press Home still go
@@ -77,9 +73,9 @@ to Amazon's home unless you turn them off in Home on Fire.
 
 ### Debloat
 
-Run `tools/firetv` and pick **Debloat** to choose which of the ad,
-recommendation and telemetry packages in `tools/packages-disabled.txt` to
-disable.
+The walkthrough's third step, or **Debloat** in the menu, lets you choose
+which of the ad, recommendation and telemetry packages in
+`tools/packages-disabled.txt` to disable.
 
 The packages the TV needs, listed in `tools/packages-core.txt` (Amazon's
 launcher, Settings, the Appstore, OTA updates, sign-in, the screensaver, the
@@ -130,7 +126,8 @@ Hidden apps).
   gradient) or **App banners** (the focused favorite's banner, blurred;
   heavier on the GPU).
 
-To use your own photo, push it and restart the app:
+To use your own photo, push it and restart the app, with `FIRETV_HOST`
+set to the TV's IP and port (`export FIRETV_HOST=192.168.1.20:5555`):
 
 ```bash
 adb -s "$FIRETV_HOST" push backdrop.jpg /sdcard/Android/data/la.bsmith.launcher/files/backdrop.jpg
@@ -148,6 +145,6 @@ tools/uninstall.sh         # remove this launcher from the TV
 tools/restore-debloat.sh   # re-enable every disabled package
 ```
 
-**Reset** in `tools/firetv` runs the same steps, asking before each.
+**Reset** in the `firetv` menu runs the same steps, asking before each.
 
 A factory reset (Settings > My Fire TV > Reset) also undoes all of it.
