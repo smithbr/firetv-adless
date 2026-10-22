@@ -104,7 +104,7 @@ do_doctor() {
 # over the TV's launcher, naming the versions.
 confirm_install() {
     [[ "${OLD_KEY}" == false ]] \
-        || log_warn "The TV's launcher is signed with an old key, so installing replaces it: its favorites, hidden apps and theme are cleared."
+        || log_warn "The TV's launcher is signed with an old key, so installing replaces it: its favorites and hidden apps are cleared."
     if [[ -n "${LATEST}" ]] && older "${INSTALLED}" "${LATEST}"; then
         confirm "Update the launcher from ${INSTALLED} to ${LATEST}?"
     elif [[ "${INSTALLED}" == "${LATEST}" ]]; then
@@ -129,7 +129,7 @@ offer_update() {
     if [[ "${OLD_KEY}" == true ]]; then
         _box "Launcher ${LATEST} is out; the TV has ${INSTALLED}.
 The TV's launcher is signed with an old key, so updating replaces it:
-its favorites, hidden apps and theme are cleared."
+its favorites and hidden apps are cleared."
     else
         _box "Launcher ${LATEST} is out; the TV has ${INSTALLED}."
     fi
@@ -206,7 +206,6 @@ make_home() {
     # Fire OS 8.1.6.9 and later: Home stays Amazon's, Home on Fire opens the launcher.
     if [[ "$(state "${HOF}")" != absent ]] \
         && [[ ":$(tv shell settings get secure enabled_accessibility_services | tr -d '\r'):" == *":${HOF_SERVICE}:"* ]]; then
-        log_info "Home on Fire is installed and on, so Home already opens its target app (picked on the TV)."
         confirm "Run the Home setup again?" || return 0
     fi
     ./make-home.sh
@@ -296,44 +295,35 @@ add_app() {
     _success "Installed $(basename "${apk}")."
 }
 
-# "NAME<tab>label<tab>mark" per theme, the mark "*" on the current one,
-# from the launcher's ThemeReceiver; with a NAME, after switching to it.
-# Empty when the launcher predates the receiver.
-launcher_themes() {
-    local out
-    out="$(tv shell am broadcast -n "${LAUNCHER_PKG}/la.bsmith.launcher.ThemeReceiver" ${1:+--es theme "$1"} 2>/dev/null | tr -d '\r' || true)"
-    [[ "${out}" == *'data="'* ]] || return 0
-    out="${out#*data=\"}"
-    printf '%s\n' "${out%\"}"
-}
-
-# Switches the launcher's theme: to NAME (a theme's name or label, any case,
-# spaces or dashes for underscores), else one picked from a menu in a
-# terminal. Elsewhere, lists them, marking the current one. Opens the
-# launcher on the TV to show it.
+# Switches the launcher's theme through launcher_theme (adb.sh): to NAME (a
+# theme's name or label, any case, spaces or dashes for underscores), else
+# one picked from a menu in a terminal. Elsewhere, lists them, marking the
+# current one. Opens the launcher on the TV to show it.
 do_theme() {
-    local list want="" current name label mark key
+    local answer list want="" current name label key
     local -a items=()
     connect
     [[ "$(state "${LAUNCHER_PKG}")" != absent ]] || die "The launcher is not installed: run firetv install"
-    list="$(launcher_themes)"
-    [[ -n "${list}" ]] || die "The launcher on the TV is too old to switch themes from here: run firetv install to update it"
-    current="$(awk -F '\t' '$3 == "*" { print $1 }' <<< "${list}")"
+    answer="$(launcher_theme)"
+    [[ -n "${answer}" ]] || die "The launcher on the TV is too old to switch themes from here: run firetv install to update it"
+    current="${answer%%$'\n'*}"
+    # "NAME<tab>label" per theme; the Light or Dark column is not needed.
+    list="$(tail -n +2 <<< "${answer}" | cut -f 1,2)"
     if (( $# > 0 )); then
         key="$(printf '%s' "$*" | tr 'a-z -' 'A-Z__')"
-        while IFS=$'\t' read -r name label mark; do
+        while IFS=$'\t' read -r name label; do
             [[ "${key}" != "${name}" && "${key}" != "$(printf '%s' "${label}" | tr 'a-z -' 'A-Z__')" ]] || want="${name}"
         done <<< "${list}"
         [[ -n "${want}" ]] || die "No theme named $* (see firetv theme)"
     elif [[ -t 0 && -t 1 ]]; then
-        while IFS=$'\t' read -r name label mark; do
-            items+=("${label}${mark:+ (current)}"$'\t'"${name}")
+        while IFS=$'\t' read -r name label; do
+            items+=("${label}$([[ "${name}" != "${current}" ]] || printf ' (current)')"$'\t'"${name}")
         done <<< "${list}"
         # Esc or end of input gives the current theme, which changes nothing.
         want="$(choose_one "Theme" "${current}" "${items[@]}")"
     else
-        while IFS=$'\t' read -r name label mark; do
-            printf '%s\t%s%s\n' "${name}" "${label}" "${mark:+ (current)}"
+        while IFS=$'\t' read -r name label; do
+            printf '%s\t%s%s\n' "${name}" "${label}" "$([[ "${name}" != "${current}" ]] || printf ' (current)')"
         done <<< "${list}"
         return 0
     fi
@@ -342,8 +332,8 @@ do_theme() {
         log_info "The launcher is already in ${label}."
         return 0
     fi
-    [[ "$(launcher_themes "${want}" | awk -F '\t' '$3 == "*" { print $1 }')" == "${want}" ]] \
-        || die "The launcher did not switch to ${label}"
+    answer="$(launcher_theme --es theme "${want}")"
+    [[ "${answer%%$'\n'*}" == "${want}" ]] || die "The launcher did not switch to ${label}"
     tv shell am start -n "${LAUNCHER_PKG}/.MainActivity" >/dev/null
     _success "Switched the launcher to ${label} and opened it on the TV."
 }

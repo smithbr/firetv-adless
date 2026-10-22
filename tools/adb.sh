@@ -222,17 +222,56 @@ read_launcher() {
     fi
 }
 
+# The launcher's theme, as its ThemeReceiver answers: the current theme's
+# name on the first line, then "NAME<tab>label<tab>variant" per theme.
+# EXTRAs set it first (--es theme NAME, --es variant.NAME Dark). Nothing
+# when the launcher is absent or older than the receiver. Flag 32 includes
+# a launcher not yet opened since it was installed.
+#   launcher_theme [EXTRA...]
+launcher_theme() {
+    local out
+    out="$(tv shell am broadcast -f 32 -n "${LAUNCHER_PKG}/la.bsmith.launcher.ThemeReceiver" "$@" 2>/dev/null | tr -d '\r' || true)"
+    [[ "${out}" == *'data="'* ]] || return 0
+    out="${out#*data=\"}"
+    printf '%s\n' "${out%\"}"
+}
+
+# Gives the launcher back a theme read by launcher_theme before it was
+# replaced: the theme, and each theme's Light or Dark. When none was read
+# (the old launcher was too old to answer), asks which theme to use.
+#   restore_theme SAVED
+restore_theme() {
+    local saved="$1" theme name label variant
+    local -a extras=() themes=()
+    if [[ -n "${saved}" ]]; then
+        extras=(--es theme "${saved%%$'\n'*}")
+        while IFS=$'\t' read -r name label variant; do
+            [[ -z "${variant}" ]] || extras+=(--es "variant.${name}" "${variant}")
+        done < <(tail -n +2 <<< "${saved}")
+    else
+        saved="$(launcher_theme)"
+        [[ -n "${saved}" ]] || return 0
+        while IFS=$'\t' read -r name label variant; do
+            themes+=("${label}"$'\t'"${name}")
+        done < <(tail -n +2 <<< "${saved}")
+        theme="$(choose_one "The old launcher's theme could not be read. Which theme?" "${saved%%$'\n'*}" "${themes[@]}")"
+        extras=(--es theme "${theme}")
+    fi
+    [[ -n "$(launcher_theme "${extras[@]}")" ]] || log_warn "Could not set the launcher's theme; pick it in the launcher's Settings."
+}
+
 # Installs the launcher's APK, updating the TV's launcher in place when it
 # can. When the TV refuses for the signing key: if the TV's launcher has the
 # release key, the APK does not, so nothing changes. Otherwise the TV's
 # launcher has another key (an older release, or a build from another
-# computer) and is replaced, asking first: that clears its favorites,
-# hidden apps and theme. --replace says the user already agreed, so it is
-# replaced without asking. When it is Home through make-home.sh, Amazon's
-# home stands in while it is replaced, and it is made Home again after.
+# computer) and is replaced, asking first: that clears its favorites and
+# hidden apps, and the theme is put back. --replace says the user already
+# agreed, so it is replaced without asking. When it is Home through
+# make-home.sh, Amazon's home stands in while it is replaced, and it is made
+# Home again after.
 #   install_launcher [--replace] APK
 install_launcher() {
-    local apk replace=false out was_home=false tools
+    local apk replace=false out was_home=false tools saved
     if [[ "${1:-}" == --replace ]]; then
         replace=true
         shift
@@ -249,8 +288,9 @@ install_launcher() {
         || die "$(basename "${apk}") is not signed with the release key and the launcher on the TV is, so it was left unchanged. To install this build anyway (a local build without the release key), remove the launcher first, which clears its settings: firetv reset, or adb -s ${TV} uninstall la.bsmith.launcher"
     if [[ "${replace}" == false ]]; then
         log_warn "The launcher on the TV is signed with a different key (an older release, or a build from another computer), so it cannot be updated in place."
-        confirm "Replace it? Its favorites, hidden apps and theme are cleared." || die "Not installed; the old launcher is still on the TV"
+        confirm "Replace it? Its favorites and hidden apps are cleared." || die "Not installed; the old launcher is still on the TV"
     fi
+    saved="$(launcher_theme)"
     if [[ "$(state com.amazon.tv.launcher)" == disabled ]]; then
         was_home=true
         "${tools}/restore-home.sh"
@@ -259,6 +299,7 @@ install_launcher() {
     # shellcheck disable=SC2016  # $1 and $2 expand in the inner sh
     out="$(spin_out "Installing the launcher on ${TV}" sh -c 'adb -s "$1" install "$2" 2>&1' _ "${TV}" "${apk}")" \
         || { printf '%s\n' "${out}" >&2; die "Could not install the launcher"; }
+    restore_theme "${saved}"
     # The user agreed to all of it, so make-home.sh need not ask again.
     [[ "${was_home}" == false ]] || "${tools}/make-home.sh" --yes
 }

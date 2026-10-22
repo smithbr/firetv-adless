@@ -60,7 +60,8 @@
             android:exported="true"
             android:permission="android.permission.DUMP" />
 
-        <!-- Theme switching for tools/firetv over adb, DUMP-limited as above. -->
+        <!-- The theme over adb, for firetv theme and so a replaced launcher
+             keeps it. DUMP, as above: other apps cannot change it. -->
         <receiver
             android:name=".ThemeReceiver"
             android:exported="true"

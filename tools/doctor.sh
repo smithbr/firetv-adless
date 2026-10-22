@@ -120,7 +120,7 @@ check_launcher_version() {
         result PASS "Launcher ${INSTALLED} installed, the latest"
     fi
     if [[ "${OLD_KEY}" == true ]]; then
-        result WARN "Launcher signed with an old key, so firetv install replaces it: its favorites, hidden apps and theme are cleared"
+        result WARN "Launcher signed with an old key, so firetv install replaces it: its favorites and hidden apps are cleared"
         add_next_step "firetv install"
     fi
 }
