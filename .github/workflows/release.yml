@@ -69,8 +69,9 @@ jobs:
           pinned="$(tr -d '[:space:]' < app/release-key.sha256)"
           certs="$("${apksigner}" verify --print-certs "${RUNNER_TEMP}/launcher.apk")" \
             || { echo "::error::apksigner cannot verify launcher.apk"; exit 1; }
-          # "Signer #1 certificate ...", or "Signer (minSdkVersion=...) ..." per SDK range.
-          signers="$(printf '%s\n' "${certs}" | sed -n 's/^Signer.* certificate SHA-256 digest: //p' | sort -u)"
+          # "Signer #1 certificate ...", "Signer (minSdkVersion=...) ..." per SDK
+          # range, or "V2 Signer: certificate ..." per scheme (apksigner 37).
+          signers="$(printf '%s\n' "${certs}" | sed -n 's/^.*Signer.* certificate SHA-256 digest: //p' | sort -u)"
           if [ "$(printf '%s\n' "${signers}" | grep -c .)" -ne 1 ] || [ "${signers}" != "${pinned}" ]; then
             echo "${apksigner} said:"
             printf '%s\n' "${certs}"
