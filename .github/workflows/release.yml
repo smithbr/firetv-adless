@@ -1,8 +1,9 @@
 # Publishes a release when main's versionName has no tag yet, so bumping
 # versionName and versionCode in app/build.gradle.kts is the whole release
 # step. The APK is signed with the release key from the repo's Actions
-# secrets (tools/release-key.sh --github), and the notes list the commits
-# since the last release.
+# secrets (tools/release-key.sh --github), and is published only when its
+# one signer is the certificate pinned in app/release-key.sha256. The notes
+# list the commits since the last release.
 name: Release
 
 on:
@@ -18,11 +19,14 @@ concurrency: release
 
 jobs:
   release:
+    # workflow_dispatch can pick any branch; only main releases.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Read the version
         id: version
@@ -56,6 +60,21 @@ jobs:
           ./gradlew --console=plain :app:assembleRelease
           cp app/build/outputs/apk/release/app-release.apk "${RUNNER_TEMP}/launcher.apk"
           rm -f "${LAUNCHER_KEYSTORE}"
+
+      - name: Check the APK's signer
+        if: steps.version.outputs.new == 'true'
+        run: |
+          apksigner="$(find "${ANDROID_HOME}/build-tools" -mindepth 2 -maxdepth 2 -name apksigner | sort -V | tail -1)"
+          [ -n "${apksigner}" ] || { echo "::error::No apksigner under ${ANDROID_HOME}/build-tools"; exit 1; }
+          pinned="$(tr -d '[:space:]' < app/release-key.sha256)"
+          certs="$("${apksigner}" verify --print-certs "${RUNNER_TEMP}/launcher.apk")" \
+            || { echo "::error::apksigner cannot verify launcher.apk"; exit 1; }
+          signers="$(printf '%s\n' "${certs}" | sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p')"
+          if [ "$(printf '%s\n' "${signers}" | grep -c .)" -ne 1 ] || [ "${signers}" != "${pinned}" ]; then
+            echo "::error::launcher.apk must have one signer, the certificate in app/release-key.sha256 (${pinned}); it has: $(printf '%s' "${signers:-none}" | tr '\n' ' ')"
+            exit 1
+          fi
+          echo "launcher.apk is signed by the pinned release key ${pinned}"
 
       - name: Publish the release
         if: steps.version.outputs.new == 'true'

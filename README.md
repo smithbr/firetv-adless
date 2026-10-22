@@ -164,14 +164,18 @@ variant to `release` and press Run.
 **Signing:** releases are signed with a key kept outside the repo, so each
 one updates the last in place. `tools/release-key.sh` creates it in
 `~/.android` and points Gradle at it; back up the keystore and its
-password, since a lost key means users must reinstall. Without the key,
-release builds use the debug key and cannot update an installed release.
+password, since a lost key means users must reinstall. Its certificate's
+SHA-256 is pinned in `app/release-key.sha256`: the script refuses to make
+or upload a key that does not match unless given `--rotate`. Without the
+key, release builds use the debug key and cannot update an installed
+release.
 
 **Releasing:** bump `versionName` and `versionCode` in
 `app/build.gradle.kts` and push to main. The Release workflow builds the
 signed APK and publishes it as `launcher.apk` in a release named after the
 version, listing the commits since the last one. It signs with the key in
-the repo's Actions secrets, which `tools/release-key.sh --github` stores.
+the repo's Actions secrets, which `tools/release-key.sh --github` stores,
+and refuses to publish an APK whose certificate does not match the pin.
 
 ## Undo everything
 
