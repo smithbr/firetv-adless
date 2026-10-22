@@ -101,7 +101,7 @@ do_doctor() {
 # over the TV's launcher, naming the versions.
 confirm_install() {
     [[ "${OLD_KEY}" == false ]] \
-        || log_warn "The TV's launcher is signed with an old key, so installing replaces it: its favorites, hidden apps and theme are cleared."
+        || log_warn "The TV's launcher is signed with an old key, so installing replaces it: its favorites and hidden apps are cleared."
     if [[ -n "${LATEST}" ]] && older "${INSTALLED}" "${LATEST}"; then
         confirm "Update the launcher from ${INSTALLED} to ${LATEST}?"
     elif [[ "${INSTALLED}" == "${LATEST}" ]]; then
@@ -126,7 +126,7 @@ offer_update() {
     if [[ "${OLD_KEY}" == true ]]; then
         _box "Launcher ${LATEST} is out; the TV has ${INSTALLED}.
 The TV's launcher is signed with an old key, so updating replaces it:
-its favorites, hidden apps and theme are cleared."
+its favorites and hidden apps are cleared."
     else
         _box "Launcher ${LATEST} is out; the TV has ${INSTALLED}."
     fi

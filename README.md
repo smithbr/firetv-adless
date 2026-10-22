@@ -47,7 +47,8 @@ When a newer release is out, `firetv` says so as it opens and offers to
 install it; `firetv install` (or install in the menu) does the same. A
 launcher installed from v0.2 or earlier, or built on another computer, is
 signed with a different key, so updating replaces it; that clears its
-favorites, hidden apps and theme, and `firetv` says so before it starts.
+favorites and hidden apps, and `firetv` says so before it starts. The theme
+is put back, or asked for when the old launcher is too old to report it.
 
 ### Make it Home
 
