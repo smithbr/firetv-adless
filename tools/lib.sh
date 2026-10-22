@@ -236,7 +236,8 @@ spin() {
 
 # The cursor gets its own column and color: gum draws a ticked row in the
 # selected style even under the cursor, so a cursor that shared the tick's
-# column or color would vanish on ticked rows.
+# column or color would vanish on ticked rows. No --ordered: it sorts the
+# rows alphabetically, and callers pass them in the order to show.
 gum_choose_multiselect() {
     local header="$1"
     local height="$2"
@@ -244,7 +245,6 @@ gum_choose_multiselect() {
 
     gum choose \
         --no-limit \
-        --ordered \
         --height="${height}" \
         --header="${header}" \
         --cursor="> " \
