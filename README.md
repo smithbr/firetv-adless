@@ -2,6 +2,8 @@
 
 A replacement home screen for Amazon Fire TV with no ads, sponsored rows, or autoplaying trailers: your apps and nothing else.
 
+![Moving around each theme on the TV](docs/gifs/tour.gif)
+
 ## Supported devices
 
 Tested on a TCL Fire TV (AFTDEC012E) running Fire OS 8.1.8.5 (Android 11).
@@ -131,11 +133,12 @@ Pick one from the Theme tile in Settings, or from the computer with
 
 <!-- screenshots -->
 
-|                                                                    |                                                              |
-| ------------------------------------------------------------------ | ------------------------------------------------------------ |
-| ![Dapple TV](docs/screenshots/dapple-tv.png)<br>Dapple TV          | ![Terminal](docs/screenshots/terminal.png)<br>Terminal       |
-| ![Mintendo Snitch](docs/screenshots/snitch.png)<br>Mintendo Snitch | ![Game Queen](docs/screenshots/game-queen.png)<br>Game Queen |
-| ![Ambient clock](docs/screenshots/ambient.png)<br>Ambient clock    | ![Editorial](docs/screenshots/editorial.png)<br>Editorial    |
+| | |
+| --- | --- |
+| ![Dapple TV](docs/screenshots/dapple-tv.png)<br>Dapple TV | ![Terminal](docs/screenshots/terminal.png)<br>Terminal |
+| ![Game Queen](docs/screenshots/game-queen.png)<br>Game Queen | ![Game Queen, Light](docs/screenshots/game-queen-light.png)<br>Game Queen, Light |
+| ![Mintendo Snitch](docs/screenshots/snitch.png)<br>Mintendo Snitch | ![Ambient clock](docs/screenshots/ambient.png)<br>Ambient clock |
+| ![Editorial](docs/screenshots/editorial.png)<br>Editorial | |
 
 <!-- /screenshots -->
 
@@ -148,6 +151,9 @@ Restart and Hidden apps).
 
 - Hold OK on any app to favorite, hide or uninstall it. Built-in Amazon
   apps can only be hidden; Settings > Hidden apps brings them back.
+
+  ![Holding OK on a favorite opens its menu](docs/gifs/menu.gif)
+
 - **Restart** in Settings restarts the TV at once. It goes through the
   TV's own adb, so ADB debugging must stay on. The first time, the TV asks
   to allow the launcher; tick Always allow and it never asks again.

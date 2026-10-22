@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Copies each theme's home screen from the last run (tests/device/out/
 # <THEME>/home.png) to docs/screenshots/, 1280 pixels wide, and rewrites the
-# table between the screenshot markers in the README. Run it after a fully
-# passing run.sh, so the README never shows a failing build.
+# table between the screenshot markers in the README, with the Light shots
+# record-gifs.sh took after their themes. Run it after a fully passing
+# run.sh, so the README never shows a failing build.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -13,22 +14,31 @@ SHOTS="${ROOT}/docs/screenshots"
 README="${ROOT}/README.md"
 mkdir -p "${SHOTS}"
 
-cells=()
+# Two screenshots per row. A theme with a Light shot from record-gifs.sh
+# takes a row of its own, Dark beside Light; the rest pair up in order.
+rows=()
+pending=""
 while read -r theme; do
     source_png="${OUT}/${theme}/home.png"
     [[ -f "${source_png}" ]] || die "no ${source_png}: the last run skipped ${theme}"
     slug="$(tr '[:upper:]_' '[:lower:]-' <<< "${theme}")"
     sips --resampleWidth 1280 "${source_png}" --out "${SHOTS}/${slug}.png" >/dev/null
     label="$(sed -nE "s/^    ${theme}\\(\"([^\"]+)\".*/\\1/p" "${ROOT}/app/src/main/java/la/bsmith/launcher/Themes.kt")"
-    cells+=("![${label}](docs/screenshots/${slug}.png)<br>${label}")
+    cell="![${label}](docs/screenshots/${slug}.png)<br>${label}"
+    if [[ -f "${SHOTS}/${slug}-light.png" ]]; then
+        rows+=("| ${cell} | ![${label}, Light](docs/screenshots/${slug}-light.png)<br>${label}, Light |")
+    elif [[ -z "${pending}" ]]; then
+        pending="${cell}"
+    else
+        rows+=("| ${pending} | ${cell} |")
+        pending=""
+    fi
 done < <(themes)
+[[ -z "${pending}" ]] || rows+=("| ${pending} | |")
 
-# Two screenshots per row.
 table="$(
     printf '| | |\n| --- | --- |\n'
-    for (( i = 0; i < ${#cells[@]}; i += 2 )); do
-        printf '| %s | %s |\n' "${cells[i]}" "${cells[i + 1]:-}"
-    done
+    printf '%s\n' "${rows[@]}"
 )"
 TABLE="${table}" awk '
     /^<!-- screenshots -->$/ { print; print ""; print ENVIRON["TABLE"]; print ""; print "<!-- /screenshots -->"; skip = 1; next }
