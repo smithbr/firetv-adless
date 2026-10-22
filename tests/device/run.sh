@@ -18,7 +18,7 @@ done
 BUILD=1
 WRITE_BASELINE=0
 SELECTED_THEMES="$(themes | paste -sd, -)"
-SELECTED_SCENARIOS="navigate,longpress,hide,perf"
+SELECTED_SCENARIOS="navigate,longpress,hide,receiver,perf"
 while (( $# )); do
     case "$1" in
         --no-build) BUILD=0 ;;
