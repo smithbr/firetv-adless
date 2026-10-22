@@ -149,13 +149,18 @@ setup_sdk() {
     fi
 }
 
-# Links tools/firetv into ~/.local/bin, leaving alone anything else there
-# under that name.
+# Links tools/firetv into ~/.local/bin. A link there whose target is gone,
+# or that points at another checkout's tools/firetv, is replaced; anything
+# else under that name is left alone.
 link_firetv() {
-    local target="${ROOT}/tools/firetv" link="${BIN}/firetv"
+    local target="${ROOT}/tools/firetv" link="${BIN}/firetv" current
     mkdir -p "${BIN}"
-    if [[ "$(readlink "${link}" 2>/dev/null)" == "${target}" ]]; then
+    current="$(readlink "${link}" 2>/dev/null || true)"
+    if [[ "${current}" == "${target}" ]]; then
         _check "firetv linked in ${BIN}"
+    elif [[ -L "${link}" && ( ! -e "${link}" || "${current}" == */tools/firetv ) ]]; then
+        ln -sfn "${target}" "${link}"
+        _check "firetv relinked in ${BIN}: it pointed at ${current}"
     elif [[ -e "${link}" || -L "${link}" ]]; then
         _caution "${link} already exists and is not this repo's; left it alone"
     else
@@ -235,7 +240,13 @@ main() {
         darwin*)
             setup_brew
             brew_bundle
-            [[ "${build}" == false ]] || brew_install "${BUILD_PKGS[@]}"
+            if [[ "${build}" == true ]]; then
+                # Temurin's pkg installer may ask for a password: VERBOSE=1
+                # has spin stream the output, so the prompt shows.
+                brew list --cask temurin >/dev/null 2>&1 \
+                    || log_info "Installing Temurin may ask for your password."
+                VERBOSE=1 brew_install "${BUILD_PKGS[@]}"
+            fi
             ;;
         linux*)
             linux_hints "${build}"
