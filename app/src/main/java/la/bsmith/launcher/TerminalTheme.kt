@@ -28,6 +28,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -52,11 +54,76 @@ import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * The colors a terminal look draws with: [ink] for names, [dim] for rules and
+ * hints, [label] for section labels, [cursor] for the focused line and the
+ * menu borders, and whether the scanline overlay is drawn.
+ *
+ * The rest are optional; null draws with the colors above. A section's accent
+ * colors its label and the cursor on its lines. Names are colored by kind,
+ * like ls --color: built-in apps, sideloaded apps, settings. Menu actions are
+ * colored by what they do, the focused one drawn as a block of its color.
+ * [clock] colors the clock, [hintKey] the keys in the footer hint, and
+ * [rule] the dashed rules. [font] is the monospace font for every line.
+ */
+data class TerminalPalette(
+    val screen: Color,
+    val ink: Color,
+    val dim: Color,
+    val label: Color,
+    val cursor: Color,
+    val scanlines: Boolean,
+    val favoritesAccent: Color? = null,
+    val appsAccent: Color? = null,
+    val settingsAccent: Color? = null,
+    val systemApp: Color? = null,
+    val sideloadedApp: Color? = null,
+    val setting: Color? = null,
+    val favoriteAction: Color? = null,
+    val hideAction: Color? = null,
+    val uninstallAction: Color? = null,
+    val clock: Color? = null,
+    val hintKey: Color? = null,
+    val rule: Color? = null,
+    val font: FontFamily = FontFamily.Monospace,
+)
+
 // One phosphor on near black; the dim shade is for labels and hints.
-private val Phosphor = Color(0xFF8CF59A)
-private val Screen = Color(0xFF050805)
-private val Dim = Color(0xFF8CF59A).copy(alpha = 0.55f)
-private val Mono = FontFamily.Monospace
+val PhosphorPalette = Color(0xFF8CF59A).let { phosphor ->
+    TerminalPalette(
+        screen = Color(0xFF050805),
+        ink = phosphor,
+        dim = phosphor.copy(alpha = 0.55f),
+        label = phosphor.copy(alpha = 0.55f),
+        cursor = phosphor,
+        scanlines = true,
+    )
+}
+
+private val LocalPalette = staticCompositionLocalOf { PhosphorPalette }
+private val Phosphor: Color @Composable get() = LocalPalette.current.ink
+private val Screen: Color @Composable get() = LocalPalette.current.screen
+private val Dim: Color @Composable get() = LocalPalette.current.dim
+private val Cursor: Color @Composable get() = LocalPalette.current.cursor
+
+/** The parts of the list; each may have its own accent. */
+private enum class Section(val title: String) {
+    FAVORITES("FAVORITES"),
+    APPS("APPS"),
+    SETTINGS("SETTINGS");
+
+    val accent: Color? @Composable get() = LocalPalette.current.let {
+        when (this) {
+            FAVORITES -> it.favoritesAccent
+            APPS -> it.appsAccent
+            SETTINGS -> it.settingsAccent
+        }
+    }
+}
+
+/** An app's name color: built in or sideloaded. */
+@Composable
+private fun appInk(app: AppEntry): Color = LocalPalette.current.let { (if (app.isSystem) it.systemApp else it.sideloadedApp) ?: it.ink }
 private val TextSize = 17.sp
 private val LineHeight = 30.dp
 private val SafeX = 48.dp
@@ -66,8 +133,8 @@ private val SafeY = 27.dp
 private sealed interface Line {
     val key: String
 
-    data class Label(val text: String) : Line {
-        override val key get() = "label:$text"
+    data class Label(val section: Section) : Line {
+        override val key get() = "label:${section.title}"
     }
 
     data class App(val entry: AppEntry, val inFavorites: Boolean) : Line {
@@ -94,16 +161,21 @@ private sealed interface Line {
  * returns to the top, OK opens, holding OK edits.
  */
 @Composable
-fun TerminalTheme(shared: LauncherShared) {
+fun TerminalTheme(shared: LauncherShared, palette: TerminalPalette = PhosphorPalette) {
+    CompositionLocalProvider(LocalPalette provides palette) { TerminalScreen(shared) }
+}
+
+@Composable
+private fun TerminalScreen(shared: LauncherShared) {
     val lines = remember(shared.favorites, shared.apps, shared.settings) {
         buildList {
             if (shared.favorites.isNotEmpty()) {
-                add(Line.Label("FAVORITES"))
+                add(Line.Label(Section.FAVORITES))
                 shared.favorites.forEach { add(Line.App(it, inFavorites = true)) }
             }
-            add(Line.Label("APPS"))
+            add(Line.Label(Section.APPS))
             shared.apps.forEach { add(Line.App(it, inFavorites = false)) }
-            add(Line.Label("SETTINGS"))
+            add(Line.Label(Section.SETTINGS))
             shared.settings.forEach { add(Line.Setting(it)) }
             add(Line.Hidden)
             add(Line.ThemeSwitch)
@@ -146,6 +218,8 @@ fun TerminalTheme(shared: LauncherShared) {
     BackHandler { focusTop() }
 
     val scanlines = rememberScanlines()
+    val settingInk = LocalPalette.current.setting ?: Phosphor
+    val settingsAccent = Section.SETTINGS.accent ?: Cursor
 
     Box(modifier = Modifier.fillMaxSize().background(Screen)) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = SafeX, vertical = SafeY)) {
@@ -155,10 +229,12 @@ fun TerminalTheme(shared: LauncherShared) {
                 itemsIndexed(lines, key = { _, line -> line.key }) { index, line ->
                     val focusMod = if (index == firstEntry) Modifier.focusRequester(topRequester) else Modifier
                     when (line) {
-                        is Line.Label -> LabelLine(line.text)
+                        is Line.Label -> LabelLine(line.section)
                         is Line.App -> EntryLine(
                             text = line.entry.label.uppercase(),
                             blinkOn = blinkOn,
+                            ink = appInk(line.entry),
+                            accent = (if (line.inFavorites) Section.FAVORITES else Section.APPS).accent ?: Cursor,
                             onClick = { shared.open(line.entry) },
                             onLongClick = { menuFor = line.entry },
                             modifier = focusMod.testTag(Tags.TILE),
@@ -166,18 +242,24 @@ fun TerminalTheme(shared: LauncherShared) {
                         is Line.Setting -> EntryLine(
                             text = line.entry.label.uppercase(),
                             blinkOn = blinkOn,
+                            ink = settingInk,
+                            accent = settingsAccent,
                             onClick = { shared.openSetting(line.entry) },
                             modifier = focusMod,
                         )
                         Line.Hidden -> EntryLine(
                             text = "HIDDEN APPS",
                             blinkOn = blinkOn,
+                            ink = settingInk,
+                            accent = settingsAccent,
                             onClick = { showHidden = true },
                             modifier = focusMod,
                         )
                         Line.ThemeSwitch -> EntryLine(
                             text = "THEME: ${shared.theme.label.uppercase()}",
                             blinkOn = blinkOn,
+                            ink = settingInk,
+                            accent = settingsAccent,
                             onClick = { showThemes = true },
                             modifier = focusMod,
                         )
@@ -185,12 +267,12 @@ fun TerminalTheme(shared: LauncherShared) {
                 }
             }
             Rule()
-            Mono("OK OPEN   HOLD OK EDIT   BACK TOP", color = Dim)
+            Hint("OK" to "OPEN", "HOLD OK" to "EDIT", "BACK" to "TOP")
         }
         // Scanlines: a 1 by 3 pixel bitmap tiled over the screen, drawn once.
         // Measured: neither this nor the blink moves the 90th percentile
         // beyond the run-to-run noise (about 5 ms).
-        Box(modifier = Modifier.fillMaxSize().background(scanlines))
+        if (LocalPalette.current.scanlines) Box(modifier = Modifier.fillMaxSize().background(scanlines))
     }
 
     menuFor?.let { app ->
@@ -226,7 +308,7 @@ private fun TerminalThemes(current: Theme, onPick: (Theme) -> Unit, onDismiss: (
                 .ignoreHeldSelect()
                 .width(560.dp)
                 .background(Screen)
-                .border(2.dp, Phosphor)
+                .border(2.dp, Cursor)
                 .padding(20.dp),
         ) {
             Mono("$ THEME", weight = FontWeight.Bold, modifier = Modifier.height(LineHeight))
@@ -260,24 +342,37 @@ private fun Header() {
     // Only the clock, right-aligned; no name or tag on the first line.
     Row(modifier = Modifier.fillMaxWidth().height(LineHeight), verticalAlignment = Alignment.CenterVertically) {
         Spacer(modifier = Modifier.weight(1f))
-        Mono(timeFormat.format(now).uppercase())
+        Mono(timeFormat.format(now).uppercase(), color = LocalPalette.current.clock ?: Phosphor)
+    }
+}
+
+/** The footer: each key, in the palette's hint key color, then what it does, dim. */
+@Composable
+private fun Hint(vararg pairs: Pair<String, String>) {
+    val key = LocalPalette.current.hintKey ?: Dim
+    Row {
+        pairs.forEachIndexed { i, (k, action) ->
+            Mono((if (i > 0) "   " else "") + k, color = key)
+            Mono(" $action", color = Dim)
+        }
     }
 }
 
 /** A line of dashes across the width; the text is longer than any screen and clipped. */
 @Composable
 private fun Rule() {
-    Mono("-".repeat(240), color = Dim, modifier = Modifier.fillMaxWidth().height(LineHeight))
+    Mono("-".repeat(240), color = LocalPalette.current.rule ?: Dim, modifier = Modifier.fillMaxWidth().height(LineHeight))
 }
 
 @Composable
-private fun LabelLine(text: String) {
-    Mono(text, color = Dim, modifier = Modifier.fillMaxWidth().height(LineHeight).padding(top = 6.dp))
+private fun LabelLine(section: Section) {
+    Mono(section.title, color = section.accent ?: LocalPalette.current.label, modifier = Modifier.fillMaxWidth().height(LineHeight).padding(top = 6.dp))
 }
 
 /**
- * A line the cursor can rest on. Focused, it is drawn inverted with a "> "
- * prompt and a blinking underscore; left and right go nowhere.
+ * A line the cursor can rest on, its text in INK. Focused, it is drawn
+ * inverted on ACCENT with a "> " prompt and a blinking underscore; left and
+ * right go nowhere.
  */
 @Composable
 private fun EntryLine(
@@ -285,6 +380,8 @@ private fun EntryLine(
     blinkOn: Boolean,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
+    ink: Color = Phosphor,
+    accent: Color = Cursor,
     modifier: Modifier = Modifier,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -303,9 +400,9 @@ private fun EntryLine(
         shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
-            focusedContainerColor = Phosphor,
-            pressedContainerColor = Phosphor,
-            contentColor = Phosphor,
+            focusedContainerColor = accent,
+            pressedContainerColor = accent,
+            contentColor = ink,
             focusedContentColor = Screen,
             pressedContentColor = Screen,
         ),
@@ -314,7 +411,7 @@ private fun EntryLine(
     ) {
         val cursor = if (focused && blinkOn) "_" else ""
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
-            Mono(text = (if (focused) "> " else "  ") + text + cursor, color = if (focused) Screen else Phosphor)
+            Mono(text = (if (focused) "> " else "  ") + text + cursor, color = if (focused) Screen else ink)
         }
     }
 }
@@ -329,7 +426,7 @@ private fun Mono(
     Text(
         text = text,
         color = color,
-        fontFamily = Mono,
+        fontFamily = LocalPalette.current.font,
         fontSize = TextSize,
         fontWeight = weight,
         maxLines = 1,
@@ -362,19 +459,36 @@ private fun TerminalMenu(
                 .ignoreHeldSelect()
                 .width(560.dp)
                 .background(Screen)
-                .border(2.dp, Phosphor)
+                .border(2.dp, Cursor)
                 .padding(20.dp),
         ) {
             Mono("$ ${app.label.uppercase()}", weight = FontWeight.Bold, modifier = Modifier.height(LineHeight))
             Rule()
+            val palette = LocalPalette.current
             EntryLine(
                 text = if (isFavorite) "REMOVE FROM FAVORITES" else "ADD TO FAVORITES",
                 blinkOn = false,
                 onClick = { onToggleFavorite(); onDismiss() },
+                ink = palette.favoriteAction ?: Phosphor,
+                accent = palette.favoriteAction ?: Cursor,
                 modifier = Modifier.focusRequester(first),
             )
-            EntryLine(text = "HIDE APP", blinkOn = false, onClick = { onHide(); onDismiss() })
-            if (!app.isSystem) EntryLine(text = "UNINSTALL", blinkOn = false, onClick = { onUninstall(); onDismiss() })
+            EntryLine(
+                text = "HIDE APP",
+                blinkOn = false,
+                onClick = { onHide(); onDismiss() },
+                ink = palette.hideAction ?: Phosphor,
+                accent = palette.hideAction ?: Cursor,
+            )
+            if (!app.isSystem) {
+                EntryLine(
+                    text = "UNINSTALL",
+                    blinkOn = false,
+                    onClick = { onUninstall(); onDismiss() },
+                    ink = palette.uninstallAction ?: Phosphor,
+                    accent = palette.uninstallAction ?: Cursor,
+                )
+            }
             EntryLine(text = "CANCEL", blinkOn = false, onClick = onDismiss)
         }
     }
@@ -403,7 +517,7 @@ private fun TerminalHidden(
                 .width(560.dp)
                 .heightIn(max = 600.dp)
                 .background(Screen)
-                .border(2.dp, Phosphor)
+                .border(2.dp, Cursor)
                 .padding(20.dp),
         ) {
             Mono("$ HIDDEN APPS", weight = FontWeight.Bold, modifier = Modifier.height(LineHeight))
@@ -414,6 +528,7 @@ private fun TerminalHidden(
                     EntryLine(
                         text = app.label.uppercase(),
                         blinkOn = false,
+                        ink = appInk(app),
                         onClick = {
                             val index = hidden.indexOfFirst { it.id == app.id }
                             focusId = (hidden.getOrNull(index + 1) ?: hidden.getOrNull(index - 1))?.id

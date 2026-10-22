@@ -34,8 +34,8 @@ merge_baseline() {
 
 scenario_perf() {
     local theme="$1" there=RIGHT back=LEFT stats total jank p90 p99 limits
-    # Terminal is one vertical list.
-    [[ "${theme}" != TERMINAL ]] || { there=DOWN; back=UP; }
+    # Terminal and Catppuccin are one vertical list.
+    [[ "${theme}" != TERMINAL && "${theme}" != CATPPUCCIN ]] || { there=DOWN; back=UP; }
     goto '$1 == "tile"' || true
     tv shell dumpsys gfxinfo "${PKG}" reset >/dev/null
     {

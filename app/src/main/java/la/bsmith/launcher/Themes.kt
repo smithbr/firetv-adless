@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 enum class Theme(val label: String, val content: @Composable (LauncherShared) -> Unit) {
     DAPPLE_TV("Dapple TV", { DappleTvTheme(it) }),
     TERMINAL("Terminal", { TerminalTheme(it) }),
+    CATPPUCCIN("Catppuccin", { CatppuccinTheme(it) }),
     SNITCH("Mintendo Snitch", { SnitchTheme(it) }),
     GAME_QUEEN("Game Queen", { GameQueenTheme(it) }),
     AMBIENT("Ambient clock", { AmbientTheme(it) }),
