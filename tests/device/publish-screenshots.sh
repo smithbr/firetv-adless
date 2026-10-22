@@ -8,6 +8,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 [[ -s "${RESULTS}" ]] || die "no results in ${RESULTS}: run tests/device/run.sh first"
+[[ -f "${OUT}/failures.txt" ]] || die "the last run did not finish; publish only from a passing run"
 [[ ! -s "${OUT}/failures.txt" ]] || die "the last run failed ($(wc -l < "${OUT}/failures.txt" | tr -d ' ') checks); publish only from a passing run"
 
 SHOTS="${ROOT}/docs/screenshots"

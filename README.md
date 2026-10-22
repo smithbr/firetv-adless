@@ -136,9 +136,10 @@ Pick one from the Theme tile in Settings, or from the computer with
 | | |
 | --- | --- |
 | ![Dapple TV](docs/screenshots/dapple-tv.png)<br>Dapple TV | ![Terminal](docs/screenshots/terminal.png)<br>Terminal |
+| ![Mintendo Snitch](docs/screenshots/snitch.png)<br>Mintendo Snitch | ![Mintendo Snitch, Light](docs/screenshots/snitch-light.png)<br>Mintendo Snitch, Light |
 | ![Game Queen](docs/screenshots/game-queen.png)<br>Game Queen | ![Game Queen, Light](docs/screenshots/game-queen-light.png)<br>Game Queen, Light |
-| ![Mintendo Snitch](docs/screenshots/snitch.png)<br>Mintendo Snitch | ![Ambient clock](docs/screenshots/ambient.png)<br>Ambient clock |
-| ![Editorial](docs/screenshots/editorial.png)<br>Editorial | |
+| ![Editorial](docs/screenshots/editorial.png)<br>Editorial | ![Editorial, Light](docs/screenshots/editorial-light.png)<br>Editorial, Light |
+| ![Ambient clock](docs/screenshots/ambient.png)<br>Ambient clock | |
 
 <!-- /screenshots -->
 

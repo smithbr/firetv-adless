@@ -71,7 +71,8 @@ private const val DARK = "Dark"
 /** The flat palette for one variant. */
 private class SwitchPalette(val background: Color, val tile: Color, val text: Color, val dim: Color)
 
-private val LightPalette = SwitchPalette(Color(0xFFEBEBEB), Color(0xFFD6D6D6), Color(0xFF2D2D2D), Color(0xFF7A7A7A))
+// Light is a mid gray, not white: a white screen glares on a TV.
+private val LightPalette = SwitchPalette(Color(0xFFC4C4C4), Color(0xFFB0B0B0), Color(0xFF2D2D2D), Color(0xFF5C5C5C))
 private val DarkPalette = SwitchPalette(Color(0xFF2D2D2D), Color(0xFF444444), Color(0xFFEBEBEB), Color(0xFF9A9A9A))
 
 /** What the small round buttons under the name stand for. */
@@ -102,7 +103,8 @@ private sealed interface Button {
  */
 @Composable
 fun SnitchTheme(shared: LauncherShared) {
-    val variant = if (shared.variant == DARK) DARK else LIGHT
+    // Dark unless Light was chosen, as in Game Queen.
+    val variant = if (shared.variant == LIGHT) LIGHT else DARK
     val palette = if (variant == DARK) DarkPalette else LightPalette
     val tiles = remember(shared.favorites, shared.apps) { shared.favorites + shared.apps }
     val buttons = remember(shared.settings, variant) {
@@ -130,7 +132,7 @@ fun SnitchTheme(shared: LauncherShared) {
 
     val menuStyle = remember(variant) {
         MenuStyle(
-            panel = if (variant == DARK) Color(0xFF3A3A3A) else Color.White,
+            panel = if (variant == DARK) Color(0xFF3A3A3A) else Color(0xFFD4D4D4),
             text = palette.text,
             dim = palette.dim,
             focusBackground = Cyan,
@@ -201,7 +203,7 @@ fun SnitchTheme(shared: LauncherShared) {
     }
     if (showHidden) StyledHiddenList(menuStyle, shared.hiddenApps, shared.unhide) { showHidden = false }
     if (showThemes) StyledThemePicker(menuStyle, shared.theme, shared.setTheme) { showThemes = false }
-    if (showVariant) StyledChoice(menuStyle, "Look", listOf(LIGHT, DARK), variant, shared.setVariant) { showVariant = false }
+    if (showVariant) StyledChoice(menuStyle, "Look", listOf(DARK, LIGHT), variant, shared.setVariant) { showVariant = false }
 }
 
 /** The large name under the row; the only reader of the focused label. */

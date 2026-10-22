@@ -24,9 +24,8 @@ done
 command -v ffmpeg >/dev/null 2>&1 || die "ffmpeg not found: brew install ffmpeg"
 [[ -f "${APK}" ]] || die "no ${APK}: run tests/device/run.sh first"
 
-# Themes that start Dark and have a Light look. Snitch and Editorial start
-# Light, so their home shots already show it.
-LIGHT_THEMES=(GAME_QUEEN)
+# Themes that start Dark and have a Light look.
+LIGHT_THEMES=(SNITCH GAME_QUEEN EDITORIAL)
 
 GIFS="${ROOT}/docs/gifs"
 SHOTS="${ROOT}/docs/screenshots"

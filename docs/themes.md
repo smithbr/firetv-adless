@@ -24,11 +24,11 @@ border and glow; a focused favorite grows a little.
 
 ## Mintendo Snitch
 
-A flat background, Light or Dark (its own setting, the "Look" button), one
-row of square tiles with a thick cyan focus border and a 150 ms scale
-bounce, the focused name large under the row, and the settings as small
-round buttons under that, reached by pressing down. A button's full name
-shows in the name slot while it is focused.
+A flat background, Dark (the default) or a mid-gray Light (its own setting,
+the "Look" button), one row of square tiles with a thick cyan focus border
+and a 150 ms scale bounce, the focused name large under the row, and the
+settings as small round buttons under that, reached by pressing down. A
+button's full name shows in the name slot while it is focused.
 
 ## Game Queen
 
@@ -59,9 +59,9 @@ clock is alone again.
 
 ## Editorial
 
-Warm paper, Light or Dark (the last word of the settings line), the focused
-app's name set large in Playfair Display italic
-(`licenses/PlayfairDisplay-OFL.txt`) with its tagline, the clock small top
-right, a row of small tiles bottom right with a thin underline for focus,
-and a short settings line bottom left (Settings · Hidden apps · Theme ·
-Dark) reached by pressing down.
+Warm paper, Dark (the default) or a toned newsprint Light (the last word
+of the settings line), the focused app's name set large in Playfair Display
+italic (`licenses/PlayfairDisplay-OFL.txt`) with its tagline, the clock small
+top right, a row of small tiles bottom right with a thin underline for
+focus, and a short settings line bottom left (Settings · Hidden apps ·
+Theme · Light) reached by pressing down.

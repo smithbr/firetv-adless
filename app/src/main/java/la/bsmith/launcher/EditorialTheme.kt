@@ -67,7 +67,8 @@ private const val ROW_WIDTH = 0.62f
 
 private class Paper(val background: Color, val ink: Color, val faint: Color, val panel: Color)
 
-private val LightPaper = Paper(Color(0xFFF7F3EA), Color(0xFF1A1816), Color(0xFF8A8580), Color(0xFFFFFCF5))
+// Light is a toned newsprint, not white: a white screen glares on a TV.
+private val LightPaper = Paper(Color(0xFFD6CFBF), Color(0xFF1A1816), Color(0xFF6B655C), Color(0xFFE0D9CA))
 private val DarkPaper = Paper(Color(0xFF1A1816), Color(0xFFF7F3EA), Color(0xFF8A8580), Color(0xFF26231F))
 
 /** One word of the settings line. */
@@ -99,7 +100,8 @@ private sealed interface Word {
  */
 @Composable
 fun EditorialTheme(shared: LauncherShared) {
-    val variant = if (shared.variant == DARK) DARK else LIGHT
+    // Dark unless Light was chosen, as in Game Queen.
+    val variant = if (shared.variant == LIGHT) LIGHT else DARK
     val paper = if (variant == DARK) DarkPaper else LightPaper
     val tiles = remember(shared.favorites, shared.apps) { shared.favorites + shared.apps }
     // A short line: the first settings entry (Fire TV's menu, or its first
