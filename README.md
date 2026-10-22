@@ -188,6 +188,10 @@ signed APK and publishes it as `launcher.apk` in a release named after the
 version, listing the commits since the last one. It signs with the key in
 the repo's Actions secrets, which `tools/release-key.sh --github` stores,
 and refuses to publish an APK whose certificate does not match the pin.
+The job that signs can only read the repo; a second job, which never sees
+the key, publishes. `firetv` checks a downloaded `launcher.apk` against the
+same pin before installing it, with `tools/apk-signers.py` (Python 3, which
+comes with the command line developer tools).
 
 ## Undo everything
 
