@@ -203,7 +203,6 @@ make_home() {
     # Fire OS 8.1.6.9 and later: Home stays Amazon's, Home on Fire opens the launcher.
     if [[ "$(state "${HOF}")" != absent ]] \
         && [[ ":$(tv shell settings get secure enabled_accessibility_services | tr -d '\r'):" == *":${HOF_SERVICE}:"* ]]; then
-        log_info "Home on Fire is installed and on, so Home already opens its target app (picked on the TV)."
         confirm "Run the Home setup again?" || return 0
     fi
     ./make-home.sh
