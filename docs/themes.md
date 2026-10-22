@@ -22,6 +22,24 @@ border and glow; a focused favorite grows a little.
   header; left and right do nothing; OK opens; holding OK opens a text menu
   with the same favorites and hide actions; Back jumps to the top.
 
+## Catppuccin
+
+The Terminal theme in [Catppuccin Mocha](https://catppuccin.com/palette)'s
+colors and JetBrains Mono (`licenses/JetBrainsMono-OFL.txt`), on the base
+color with hints in overlay 1 and no scanlines. Layout and keys are
+Terminal's.
+
+- **Sections**: FAVORITES in pink, APPS in blue, SETTINGS in green; the block
+  cursor takes the color of the section it is in.
+- **Names**, colored by kind like `ls --color`: built-in apps blue,
+  sideloaded apps green, settings teal.
+- **Menu**: ADD TO (or REMOVE FROM) FAVORITES in yellow, HIDE APP in peach,
+  UNINSTALL in red; the focused action is a block of its color. Borders and
+  other menu lines are mauve.
+- **Clock, footer and rules**: the clock is peach; the footer's keys (OK,
+  HOLD OK, BACK) are yellow; the dashed rules are in surface 1, so they
+  recede.
+
 ## Mintendo Snitch
 
 A flat background, Light or Dark (its own setting, the "Look" button), one
