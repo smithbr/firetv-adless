@@ -10,9 +10,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 // The file keeps its original name so favorites saved by earlier builds survive.
-// Theme names saved by builds before the themes were renamed, so a saved
-// choice and its Light or Dark setting still resolve.
-private val LegacyThemes = mapOf("APPLE_TV" to Theme.DAPPLE_TV, "SWITCH" to Theme.SNITCH, "GAME_BOY" to Theme.GAME_QUEEN)
 private fun legacyNameOf(theme: Theme): String? = LegacyThemes.entries.firstOrNull { it.value == theme }?.key
 private fun variantKey(theme: Theme) = stringPreferencesKey("variant.${theme.name}")
 
@@ -53,7 +50,7 @@ class LauncherStore(private val context: Context) {
     }
 
     val theme: Flow<Theme> = context.dataStore.data.map { prefs ->
-        prefs[themeKey].let { name -> Theme.entries.firstOrNull { it.name == name } ?: LegacyThemes[name] } ?: Theme.DAPPLE_TV
+        Theme.byName(prefs[themeKey]) ?: Theme.DAPPLE_TV
     }
 
     suspend fun setTheme(theme: Theme) {

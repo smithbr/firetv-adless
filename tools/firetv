@@ -305,7 +305,7 @@ do_theme() {
     connect
     [[ "$(state "${LAUNCHER_PKG}")" != absent ]] || die "The launcher is not installed: run firetv install"
     answer="$(launcher_theme)"
-    [[ -n "${answer}" ]] || die "The launcher on the TV is too old to switch themes from here: run firetv install to update it"
+    [[ -n "${answer}" ]] || die "Could not read the launcher's theme. An older launcher cannot answer: run firetv install to update it"
     current="${answer%%$'\n'*}"
     # "NAME<tab>label" per theme; the Light or Dark column is not needed.
     list="$(tail -n +2 <<< "${answer}" | cut -f 1,2)"

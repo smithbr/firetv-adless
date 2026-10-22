@@ -13,5 +13,15 @@ enum class Theme(val label: String, val content: @Composable (LauncherShared) ->
     SNITCH("Mintendo Snitch", { SnitchTheme(it) }),
     GAME_QUEEN("Game Queen", { GameQueenTheme(it) }),
     AMBIENT("Ambient clock", { AmbientTheme(it) }),
-    EDITORIAL("Editorial", { EditorialTheme(it) }),
+    EDITORIAL("Editorial", { EditorialTheme(it) });
+
+    companion object {
+        /** The theme saved or sent as NAME, a name from before the renames included; null when none is. */
+        fun byName(name: String?): Theme? = entries.firstOrNull { it.name == name } ?: LegacyThemes[name]
+    }
 }
+
+// Theme names used by builds before the themes were renamed, so a saved
+// choice and its Light or Dark setting, or a theme sent by ThemeReceiver's
+// caller, still resolve.
+val LegacyThemes = mapOf("APPLE_TV" to Theme.DAPPLE_TV, "SWITCH" to Theme.SNITCH, "GAME_BOY" to Theme.GAME_QUEEN)

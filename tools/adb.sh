@@ -225,20 +225,31 @@ read_launcher() {
 # The launcher's theme, as its ThemeReceiver answers: the current theme's
 # name on the first line, then "NAME<tab>label<tab>variant" per theme.
 # EXTRAs set it first (--es theme NAME, --es variant.NAME Dark). Nothing
-# when the launcher is absent or older than the receiver. Flag 32 includes
-# a launcher not yet opened since it was installed.
+# when the launcher is absent or older than the receiver, when the receiver
+# fails (an unknown theme, say), or when a name or Light or Dark is not
+# plain letters and underscores: callers send those back through adb shell,
+# whose shell on the TV would run anything else in them, and a launcher
+# with another key may be any app. Flag 32 includes a launcher not yet
+# opened since it was installed.
 #   launcher_theme [EXTRA...]
 launcher_theme() {
-    local out
+    local out line row=$'^[A-Z_]+\t[^\t]*\t[A-Za-z]*$'
     out="$(tv shell am broadcast -f 32 -n "${LAUNCHER_PKG}/la.bsmith.launcher.ThemeReceiver" "$@" 2>/dev/null | tr -d '\r' || true)"
-    [[ "${out}" == *'data="'* ]] || return 0
-    out="${out#*data=\"}"
-    printf '%s\n' "${out%\"}"
+    [[ "${out}" == *'result=0, data="'* ]] || return 0
+    out="${out#*result=0, data=\"}"
+    out="${out%\"}"
+    [[ "${out%%$'\n'*}" =~ ^[A-Z_]+$ ]] || return 0
+    while IFS= read -r line; do
+        [[ "${line}" =~ ${row} ]] || return 0
+    done < <(tail -n +2 <<< "${out}")
+    printf '%s\n' "${out}"
 }
 
 # Gives the launcher back a theme read by launcher_theme before it was
 # replaced: the theme, and each theme's Light or Dark. When none was read
-# (the old launcher was too old to answer), asks which theme to use.
+# (the old launcher was too old to answer), asks which theme to use. Warns
+# when the launcher refuses it: the receiver fails on a theme it has no
+# name for, such as one a newer build removed.
 #   restore_theme SAVED
 restore_theme() {
     local saved="$1" theme name label variant
