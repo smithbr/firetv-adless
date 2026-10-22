@@ -2,7 +2,8 @@
 # Debloat and tweaks in one checklist: the packages in packages-disabled.txt
 # and the tweaks in tweaks.txt (tweak.sh). The ticks show the TV as it is: a
 # ticked package is disabled, a ticked tweak is on. Enabled packages come
-# first. Lists every change and asks before applying them.
+# first. Lists every change and asks before applying them. A package Fire OS
+# refuses to disable is remembered (PROTECTED in adb.sh) and not offered again.
 #   tune.sh               the checklist in a terminal, else lists the tweaks
 #   tune.sh NAME on|off   apply one tweak (tweak.sh)
 set -euo pipefail
@@ -19,7 +20,7 @@ connect
 # list; state() would take two per package.
 all="$(spin_out "Reading the TV's packages" adb -s "${TV}" shell pm list packages | tr -d '\r')"
 off="$(tv shell pm list packages -d | tr -d '\r')"
-group="" missing="" width=0
+group="" missing="" kept_on="" width=0
 pkgs=() groups=() states=()
 while read -r line; do
     [[ -n "${line}" ]] || continue
@@ -38,12 +39,17 @@ while read -r line; do
     fi
     st=enabled
     grep -qxF "package:${pkg}" <<< "${off}" && st=disabled
+    if [[ "${st}" == enabled ]] && is_protected "${pkg}"; then
+        kept_on="${kept_on} ${pkg}"
+        continue
+    fi
     pkgs+=("${pkg}")
     groups+=("${group}")
     states+=("${st}")
     (( ${#pkg} <= width )) || width=${#pkg}
 done < packages-disabled.txt
 [[ -z "${missing}" ]] || log_info "Not on this TV:${missing}"
+[[ -z "${kept_on}" ]] || log_info "Protected by Fire OS, so they stay on (that is fine):${kept_on}"
 (( ${#pkgs[@]} > 0 )) || log_warn "None of packages-disabled.txt is on this TV"
 
 # Tweak rows: NAME<tab>STATE<tab>DESCRIPTION.
@@ -117,11 +123,31 @@ _box "$(
     for name in ${tweak_off}; do printf 'turn off  %s\n' "${name}"; done
 )"
 confirm "Apply these changes on ${TV}?" || exit 0
+# One refused package does not stop the rest. Fire OS protects some
+# packages on some versions; those are remembered and left on.
+failed=0
 for pkg in ${disable}; do
-    tv shell pm disable-user --user 0 "${pkg}" | tr -d '\r' | sed "s/^/${pkg}: /"
+    out="$(tv shell pm disable-user --user 0 "${pkg}" 2>&1 | tr -d '\r' || true)"
+    if [[ "${out}" == *"new state: disabled"* ]]; then
+        _check "${pkg} disabled"
+    elif [[ "${out}" == *"protected package"* ]]; then
+        mkdir -p "$(dirname "${PROTECTED}")"
+        is_protected "${pkg}" || printf '%s\n' "${pkg}" >> "${PROTECTED}"
+        _skip "${pkg}: Fire OS protects it, so it stays on. That is fine; tune will not offer it again."
+    else
+        _cross "${pkg}: not disabled: $(head -n 1 <<< "${out}")"
+        failed=$(( failed + 1 ))
+    fi
 done
 for pkg in ${enable}; do
-    tv shell pm enable "${pkg}" | tr -d '\r' | sed "s/^/${pkg}: /"
+    out="$(tv shell pm enable "${pkg}" 2>&1 | tr -d '\r' || true)"
+    if [[ "${out}" == *"new state: enabled"* ]]; then
+        _check "${pkg} enabled"
+    else
+        _cross "${pkg}: not enabled: $(head -n 1 <<< "${out}")"
+        failed=$(( failed + 1 ))
+    fi
 done
 for name in ${tweak_on}; do ./tweak.sh "${name}" on; done
 for name in ${tweak_off}; do ./tweak.sh "${name}" off; done
+(( failed == 0 )) || die "${failed} package(s) could not be changed; see above"

@@ -57,6 +57,12 @@ fi
 
 tv() { adb -s "${TV}" "$@" < /dev/null; }
 
+# Packages from packages-disabled.txt that Fire OS refused to disable
+# ("Cannot disable a protected package"), one per line. tune adds to it and
+# no longer offers them; doctor does not count them against debloat.
+PROTECTED="${XDG_STATE_HOME:-${HOME}/.local/state}/firetv/protected"
+is_protected() { grep -qxF "$1" "${PROTECTED}" 2>/dev/null; }
+
 # One script drives the TV at a time. The lock is a directory (mkdir is
 # atomic) holding the owner's PID; a lock whose owner has exited is cleared.
 # /tmp/claude, not $TMPDIR, so that every shell and every Claude session

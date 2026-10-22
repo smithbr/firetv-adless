@@ -57,6 +57,10 @@ check_debloat() {
         fi
         [[ "${line}" != \#* ]] || continue
         grep -qxF "package:${line}" <<< "${installed}" || continue
+        # Fire OS refused to disable it (tune remembered); nothing to do.
+        if is_protected "${line}" && ! grep -qxF "package:${line}" <<< "${disabled}"; then
+            continue
+        fi
         present=$(( present + 1 ))
         grep -qxF "package:${line}" <<< "${disabled}" && off=$(( off + 1 ))
     done < packages-disabled.txt

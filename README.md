@@ -77,7 +77,8 @@ the ad, recommendation and telemetry packages in
 `tools/packages-disabled.txt` and the settings tweaks in `tools/tweaks.txt`.
 The ticks show the TV as it is: a ticked package is disabled, a ticked tweak
 is on. Enabled packages are listed first. Tick a package to disable it, untick
-it to turn it back on; ctrl+a ticks them all.
+it to turn it back on; ctrl+a ticks them all. Some Fire OS versions protect a
+package from being disabled; tune says so, leaves it on, and stops offering it.
 
 The packages the TV needs, listed in `tools/packages-core.txt` (Amazon's
 launcher, Settings, the Appstore, OTA updates, sign-in, the screensaver, the
