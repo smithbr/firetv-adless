@@ -153,6 +153,25 @@ launcher_signature() {
         | tr -d ' ' | head -1
 }
 
+# Stops unless every signer of a downloaded APK is the release key pinned
+# in app/release-key.sha256. The Release workflow checks the same, but
+# whoever can add a file to a release can skip the workflow, and a TV
+# without the launcher, or one whose launcher is being replaced, takes an
+# APK signed with any key. apk-signers.py reads the signers, since a
+# computer without the Android SDK has no apksigner.
+check_release_signer() {
+    local apk="$1" tools pinned signers
+    tools="$(dirname "${BASH_SOURCE[0]}")"
+    pinned="$(tr -d '[:space:]' 2>/dev/null < "${tools}/../app/release-key.sha256" || true)"
+    [[ -n "${pinned}" ]] || die "No app/release-key.sha256 to check $(basename "${apk}") against"
+    command -v python3 >/dev/null 2>&1 \
+        || die "Checking $(basename "${apk}") needs python3. On a Mac, install the command line developer tools: xcode-select --install"
+    signers="$(python3 -I "${tools}/apk-signers.py" "${apk}")" \
+        || die "Could not read the signer of $(basename "${apk}"), so it was not installed"
+    [[ "$(printf '%s\n' "${signers}" | sort -u)" == "${pinned}" ]] \
+        || die "$(basename "${apk}") is not signed with the release key in app/release-key.sha256, so it was not installed. Its signers: $(printf '%s\n' "${signers}" | sort -u | tr '\n' ' ')"
+}
+
 # Runs a command for at most SECONDS (macOS has no timeout), then stops
 # it: for a command that can hang on the network. Fails when it fails or
 # runs out of time. Stops only the command's own process, so it must not

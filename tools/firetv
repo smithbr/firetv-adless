@@ -184,6 +184,7 @@ do_install() {
         { command -v gh >/dev/null 2>&1 && gh release download --repo "$1" --pattern launcher.apk --dir "$2"; } \
             || curl -fsSL -o "$2/launcher.apk" "https://github.com/$1/releases/latest/download/launcher.apk"' _ "${REPO}" "${tmp}" \
         || die "Could not download launcher.apk from https://github.com/${REPO}/releases/latest. While the repo is private, run tools/setup.sh to sign in to GitHub."
+    check_release_signer "${tmp}/launcher.apk"
     install_launcher ${replace[@]+"${replace[@]}"} "${tmp}/launcher.apk"
     tv shell am start -n "${LAUNCHER_PKG}/.MainActivity" >/dev/null
     _success "Installed the launcher and opened it on the TV."
