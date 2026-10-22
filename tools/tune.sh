@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Debloat and tweaks in one checklist: the packages in packages-disabled.txt
-# and the tweaks in tweaks.txt (tweak.sh). A tick applies it: a ticked
-# package is disabled, a ticked tweak is on. Lists every change and asks
-# before applying them.
+# and the tweaks in tweaks.txt (tweak.sh). The ticks show the TV as it is: a
+# ticked package is disabled, a ticked tweak is on. Enabled packages come
+# first. Lists every change and asks before applying them.
 #   tune.sh               the checklist in a terminal, else lists the tweaks
 #   tune.sh NAME on|off   apply one tweak (tweak.sh)
 set -euo pipefail
@@ -19,7 +19,7 @@ connect
 # list; state() would take two per package.
 all="$(spin_out "Reading the TV's packages" adb -s "${TV}" shell pm list packages | tr -d '\r')"
 off="$(tv shell pm list packages -d | tr -d '\r')"
-group="" missing="" width=0 gwidth=0
+group="" missing="" width=0
 pkgs=() groups=() states=()
 while read -r line; do
     [[ -n "${line}" ]] || continue
@@ -42,7 +42,6 @@ while read -r line; do
     groups+=("${group}")
     states+=("${st}")
     (( ${#pkg} <= width )) || width=${#pkg}
-    (( ${#group} <= gwidth )) || gwidth=${#group}
 done < packages-disabled.txt
 [[ -z "${missing}" ]] || log_info "Not on this TV:${missing}"
 (( ${#pkgs[@]} > 0 )) || log_warn "None of packages-disabled.txt is on this TV"
@@ -51,30 +50,40 @@ done < packages-disabled.txt
 tweaks="$(spin_out "Reading the TV's settings" ./tweak.sh --tsv)"
 
 # Columns wide enough for the tweaks too.
-while IFS=$'\t' read -r name st _; do
+while IFS=$'\t' read -r name _; do
     (( ${#name} <= width )) || width=${#name}
-    (( ${#st} <= gwidth )) || gwidth=${#st}
 done <<< "${tweaks}"
 
-# Every package starts ticked; a tweak starts ticked when it is on. gum
-# cannot relabel a row as it is toggled, so a package row says what Enter
-# does either way.
+# One row: KIND NAME STATE ABOUT, then a tab and the value choose_many returns.
+row() {
+    printf '%-7s  %-*s  %-8s  %s\t%s' "$1" "${width}" "$2" "$3" "$4" "$5"
+}
+
+# Ticks match the TV: a disabled package or an on tweak starts ticked.
+# Enabled packages first, then disabled ones, then the tweaks that are off
+# or partly on, then those that are on.
 opts=()
 selected=""
-for index in "${!pkgs[@]}"; do
-    what="off → on if unticked"
-    [[ "${states[${index}]}" == enabled ]] && what="on → off if ticked"
-    opts+=("$(printf '%-7s  %-*s  %-*s  %s' package "${width}" "${pkgs[${index}]}" "${gwidth}" "${groups[${index}]}" "${what}")"$'\t'"pkg:${pkgs[${index}]}")
-    selected="${selected} pkg:${pkgs[${index}]}"
+for want in enabled disabled; do
+    for index in "${!pkgs[@]}"; do
+        [[ "${states[${index}]}" == "${want}" ]] || continue
+        opts+=("$(row package "${pkgs[${index}]}" "${want}" "${groups[${index}]}" "pkg:${pkgs[${index}]}")")
+        [[ "${want}" != disabled ]] || selected="${selected} pkg:${pkgs[${index}]}"
+    done
 done
-while IFS=$'\t' read -r name st desc; do
-    [[ -n "${name}" ]] || continue
-    opts+=("$(printf '%-7s  %-*s  %-*s  %s' tweak "${width}" "${name}" "${gwidth}" "${st}" "${desc}")"$'\t'"tweak:${name}")
-    [[ "${st}" != on ]] || selected="${selected} tweak:${name}"
-done <<< "${tweaks}"
+for want in off on; do
+    while IFS=$'\t' read -r name st desc; do
+        [[ -n "${name}" ]] || continue
+        is="off"
+        [[ "${st}" != on ]] || is="on"
+        [[ "${is}" == "${want}" ]] || continue
+        opts+=("$(row tweak "${name}" "${st}" "${desc}" "tweak:${name}")")
+        [[ "${want}" != on ]] || selected="${selected} tweak:${name}"
+    done <<< "${tweaks}"
+done
 (( ${#opts[@]} > 0 )) || die "Nothing to tune on this TV"
 
-picked="$(choose_many --selected "${selected}" "A tick applies it (package disabled, tweak on). Packages start ticked." "${opts[@]}")" || exit 0
+picked="$(choose_many --selected "${selected}" "Ticked = disabled (a tweak: on). Ticks match the TV now." "${opts[@]}")" || exit 0
 
 # Ticked packages that are enabled get disabled, unticked ones that are
 # disabled get enabled. A ticked tweak not fully on is turned on, an

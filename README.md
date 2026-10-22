@@ -72,9 +72,9 @@ to Amazon's home unless you turn them off in Home on Fire.
 Part of tune, in the walkthrough or with `firetv tune`: one checklist of
 the ad, recommendation and telemetry packages in
 `tools/packages-disabled.txt` and the settings tweaks in `tools/tweaks.txt`.
-A tick applies it: a ticked package is disabled, a ticked tweak is on. Every
-package starts ticked and each tweak starts as it is on the TV; untick a
-package to keep it on or turn it back on.
+The ticks show the TV as it is: a ticked package is disabled, a ticked tweak
+is on. Enabled packages are listed first. Tick a package to disable it, untick
+it to turn it back on; ctrl+a ticks them all.
 
 The packages the TV needs, listed in `tools/packages-core.txt` (Amazon's
 launcher, Settings, the Appstore, OTA updates, sign-in, the screensaver, the
