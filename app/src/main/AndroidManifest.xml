@@ -7,6 +7,10 @@
     <!-- Lets the launcher ask the system to uninstall an app; the system's own dialog confirms. -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
+    <!-- Restart talks to the TV's own adb service on 127.0.0.1 (TvRestart);
+         an app needs this for any socket, even a local one. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Target 30 filters package visibility; these let the launcher see
          every app that has a TV or phone launcher activity. -->
     <queries>

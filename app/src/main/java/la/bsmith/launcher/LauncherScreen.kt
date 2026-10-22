@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -59,8 +60,10 @@ class LauncherShared(
 @Composable
 fun LauncherApp() {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val repository = remember { AppRepository(context) }
     val store = remember { LauncherStore(context) }
+    val tvRestart = remember { TvRestart(context) }
     val scope = rememberCoroutineScope()
 
     // Null until loaded: a theme is drawn only once every list is in, so
@@ -116,7 +119,22 @@ fun LauncherApp() {
         favoriteIds.orEmpty().mapNotNull { id -> apps.firstOrNull { it.id == id } }
     }
 
-    fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+    fun toast(text: String, length: Int = Toast.LENGTH_SHORT) = Toast.makeText(context, text, length).show()
+
+    fun restart() {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                tvRestart.restart(onPrompt = { scope.launch { toast(resources.getString(R.string.restart_allow), Toast.LENGTH_LONG) } })
+            }
+            val message = when (result) {
+                TvRestart.Result.RESTARTING -> return@launch
+                TvRestart.Result.NO_ADB -> R.string.restart_no_adb
+                TvRestart.Result.NOT_ALLOWED -> R.string.restart_not_allowed
+                TvRestart.Result.FAILED -> R.string.restart_failed
+            }
+            toast(resources.getString(message), Toast.LENGTH_LONG)
+        }
+    }
 
     val shared = remember(apps, favorites, hiddenApps, favoriteIds, settings, currentTheme, variants, backdropStyle) {
         LauncherShared(
@@ -129,32 +147,36 @@ fun LauncherApp() {
             variant = variants[currentTheme] ?: "",
             backdropStyle = backdropStyle,
             open = { entry ->
-                if (!repository.launch(entry)) toast(context.getString(R.string.cannot_launch, entry.label))
+                if (!repository.launch(entry)) toast(resources.getString(R.string.cannot_launch, entry.label))
             },
             openSetting = { entry ->
-                if (!repository.launch(entry)) toast(context.getString(R.string.cannot_launch, entry.label))
+                when (val action = entry.action) {
+                    is SystemAction.Open ->
+                        if (!repository.launch(action)) toast(resources.getString(R.string.cannot_launch, entry.label))
+                    SystemAction.Restart -> restart()
+                }
             },
             toggleFavorite = { entry ->
                 scope.launch {
                     val added = store.toggleFavorite(entry.id)
                     val message = if (added) R.string.added_favorite else R.string.removed_favorite
-                    toast(context.getString(message, entry.label))
+                    toast(resources.getString(message, entry.label))
                 }
             },
             hide = { entry ->
                 scope.launch {
                     store.hide(entry.id)
-                    toast(context.getString(R.string.hid_app, entry.label))
+                    toast(resources.getString(R.string.hid_app, entry.label))
                 }
             },
             unhide = { entry ->
                 scope.launch {
                     store.unhide(entry.id)
-                    toast(context.getString(R.string.unhid_app, entry.label))
+                    toast(resources.getString(R.string.unhid_app, entry.label))
                 }
             },
             uninstall = { entry ->
-                if (!repository.uninstall(entry)) toast(context.getString(R.string.cannot_uninstall, entry.label))
+                if (!repository.uninstall(entry)) toast(resources.getString(R.string.cannot_uninstall, entry.label))
             },
             setTheme = { next -> scope.launch { store.setTheme(next) } },
             setVariant = { value -> currentTheme?.let { t -> scope.launch { store.setVariant(t, value) } } },
