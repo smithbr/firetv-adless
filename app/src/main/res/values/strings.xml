@@ -27,4 +27,8 @@
     <string name="theme_tile">Theme: %1$s</string>
     <string name="theme_title">Theme</string>
     <string name="theme_current">%1$s (current)</string>
+    <string name="restart_allow">To restart, allow the prompt on screen. Tick Always allow so Restart never asks again.</string>
+    <string name="restart_no_adb">Cannot restart: turn on ADB debugging in Settings › My Fire TV › Developer options.</string>
+    <string name="restart_not_allowed">Not restarted: the prompt was not allowed. Choose Restart again to see it.</string>
+    <string name="restart_failed">Could not restart the TV.</string>
 </resources>

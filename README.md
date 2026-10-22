@@ -134,11 +134,14 @@ Pick one from the Theme tile in Settings. Each is described in
 
 In the default Dapple TV theme, three tabs run across the top: **Home**
 (your favorites), **Apps** (everything installed, sideloaded apps
-included) and **Settings** (Fire TV's settings sections, the Appstore and
-Hidden apps).
+included) and **Settings** (Fire TV's settings sections, the Appstore,
+Restart and Hidden apps).
 
 - Hold OK on any app to favorite, hide or uninstall it. Built-in Amazon
   apps can only be hidden; Settings > Hidden apps brings them back.
+- **Restart** in Settings restarts the TV at once. It goes through the
+  TV's own adb, so ADB debugging must stay on. The first time, the TV asks
+  to allow the launcher; tick Always allow and it never asks again.
 - **Backdrop** in Settings picks **Still** (your photo, or a dark
   gradient) or **App banners** (the focused favorite's banner, blurred;
   heavier on the GPU).
