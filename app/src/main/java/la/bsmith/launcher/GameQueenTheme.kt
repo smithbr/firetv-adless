@@ -45,21 +45,23 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
 
-// The four DMG greens, darkest to lightest; a variant only re-assigns them.
+// The Dark look: a true black screen behind two of the DMG greens.
 private val Darkest = Color(0xFF0F380F)
-private val Dark = Color(0xFF306230)
 private val Light = Color(0xFF8BAC0F)
-private val Lightest = Color(0xFF9BBC0F)
-// The Dark look's screen: a true black behind the greens.
 private val Black = Color(0xFF000000)
+// The Light look: the original screen unlit, gray with a green tint, lightest to darkest.
+private val Unlit = Color(0xFFC7CBB2)
+private val UnlitTile = Color(0xFFABB08F)
+private val UnlitDim = Color(0xFF5E6650)
+private val UnlitInk = Color(0xFF2B3320)
 
 private const val LIGHT = "Light"
 private const val DARK = "Dark"
 
-/** Which green plays which role. */
+/** Which color plays which role. */
 private class GbPalette(val screen: Color, val tile: Color, val ink: Color, val dim: Color, val focus: Color)
 
-private val LightPalette = GbPalette(screen = Lightest, tile = Light, ink = Darkest, dim = Dark, focus = Darkest)
+private val LightPalette = GbPalette(screen = Unlit, tile = UnlitTile, ink = UnlitInk, dim = UnlitDim, focus = UnlitInk)
 // "Pocket black": black screen, darkest-green tiles and panels, one mid green for everything drawn.
 private val DarkPalette = GbPalette(screen = Black, tile = Darkest, ink = Light, dim = Light, focus = Light)
 
@@ -107,7 +109,7 @@ private sealed interface Tile {
 }
 
 /**
- * The Game Queen look: four greens, a pixel font, a 6-wide grid of square
+ * The Game Queen look: an original Game Boy screen's colors, a pixel font, a 6-wide grid of square
  * tiles that carry the app's name in up to two lines, a 3 dp border on the
  * focused tile and no animation anywhere, the focused name under the grid,
  * A/B hints below; no title line. The grid keeps its own bounds above the name and the

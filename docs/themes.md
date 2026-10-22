@@ -32,8 +32,8 @@ shows in the name slot while it is focused.
 
 ## Game Queen
 
-The Press Start 2P pixel font (`licenses/PressStart2P-OFL.txt`) and four
-greens.
+The Press Start 2P pixel font (`licenses/PressStart2P-OFL.txt`) and an
+original Game Boy screen's colors.
 
 - **Layout**: a 6-wide grid of square tiles across the whole safe area, each
   carrying its app's name in capitals, centred and wrapped to at most two
@@ -45,8 +45,9 @@ greens.
 - **Dark** (the default, "Pocket black"): a true black screen, tiles and
   menu panels in the darkest green, text, hints and the focused border in
   the mid green.
-- **Light**: the original lightest-green screen with the darkest green for
-  ink. The "LOOK" tile switches between them.
+- **Light**: the original screen unlit, a light gray with a green tint,
+  slightly darker tiles and dark olive ink. The "LOOK" tile switches
+  between them.
 
 ## Ambient clock
 
