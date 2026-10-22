@@ -42,16 +42,16 @@ Terminal's.
 
 ## Mintendo Snitch
 
-A flat background, Light or Dark (its own setting, the "Look" button), one
-row of square tiles with a thick cyan focus border and a 150 ms scale
-bounce, the focused name large under the row, and the settings as small
-round buttons under that, reached by pressing down. A button's full name
-shows in the name slot while it is focused.
+A flat background, Dark (the default) or a mid-gray Light (its own setting,
+the "Look" button), one row of square tiles with a thick cyan focus border
+and a 150 ms scale bounce, the focused name large under the row, and the
+settings as small round buttons under that, reached by pressing down. A
+button's full name shows in the name slot while it is focused.
 
 ## Game Queen
 
-The Press Start 2P pixel font (`licenses/PressStart2P-OFL.txt`) and four
-greens.
+The Press Start 2P pixel font (`licenses/PressStart2P-OFL.txt`) and an
+original Game Boy screen's colors.
 
 - **Layout**: a 6-wide grid of square tiles across the whole safe area, each
   carrying its app's name in capitals, centred and wrapped to at most two
@@ -63,8 +63,9 @@ greens.
 - **Dark** (the default, "Pocket black"): a true black screen, tiles and
   menu panels in the darkest green, text, hints and the focused border in
   the mid green.
-- **Light**: the original lightest-green screen with the darkest green for
-  ink. The "LOOK" tile switches between them.
+- **Light**: the original screen unlit, a light gray with a green tint,
+  slightly darker tiles and dark olive ink. The "LOOK" tile switches
+  between them.
 
 ## Ambient clock
 
@@ -76,9 +77,9 @@ clock is alone again.
 
 ## Editorial
 
-Warm paper, Light or Dark (the last word of the settings line), the focused
-app's name set large in Playfair Display italic
-(`licenses/PlayfairDisplay-OFL.txt`) with its tagline, the clock small top
-right, a row of small tiles bottom right with a thin underline for focus,
-and a short settings line bottom left (Settings · Hidden apps · Theme ·
-Dark) reached by pressing down.
+Warm paper, Dark (the default) or a toned newsprint Light (the last word
+of the settings line), the focused app's name set large in Playfair Display
+italic (`licenses/PlayfairDisplay-OFL.txt`) with its tagline, the clock small
+top right, a row of small tiles bottom right with a thin underline for
+focus, and a short settings line bottom left (Settings · Hidden apps ·
+Theme · Light) reached by pressing down.
