@@ -21,11 +21,13 @@ source ./ui.sh
 HOF_SERVICE="${HOF}/.HijackService"
 
 # The steps, in menu order, as "NAME;ARGS;WHAT IT DOES". firetv NAME runs
-# do_NAME; the menu lists NAME and what it does. Doctor is first, so Enter
+# do_NAME; the menu lists NAME and what it does, all but setup, the
+# first-run walkthrough, whose slot theme takes. Doctor is first, so Enter
 # on the menu changes nothing.
 STEPS=(
     "doctor;;check the TV, launcher, debloat and storage"
     "setup;;walk through setting up the TV, step by step"
+    "theme;[NAME];switch the launcher's theme"
     "install;;put the launcher on the TV, clear old builds and make it Home"
     "tune;[NAME on|off];disable Amazon's ad apps and apply speed tweaks"
     "apps;[list|add APP|remove [APP...]];get apps from the Appstore, sideload or uninstall"
@@ -45,7 +47,8 @@ usage() {
             printf '| `%s` | %s |\n' "${name}${args:+ ${args//|/\\|}}" "${what}"
         done
         printf '\n`tune` with no arguments is a checklist in a terminal and a list'
-        printf ' elsewhere, and `apps` a menu in a terminal and a list elsewhere. `apps add`'
+        printf ' elsewhere, and `apps` and `theme` a menu in a terminal and a list elsewhere.'
+        printf ' `theme` takes a name or label from that list, in any case. `apps add`'
         printf ' takes a name from tools/appstore.txt, a package, an ASIN or an amazon.com link.'
         printf ' setup, install and reset need a terminal.\n\n'
         printf 'The TV is the IP that `setup` or the menu asked for, or `FIRETV_HOST`\n(IP, or IP:port) when set.\n'
@@ -293,6 +296,58 @@ add_app() {
     _success "Installed $(basename "${apk}")."
 }
 
+# "NAME<tab>label<tab>mark" per theme, the mark "*" on the current one,
+# from the launcher's ThemeReceiver; with a NAME, after switching to it.
+# Empty when the launcher predates the receiver.
+launcher_themes() {
+    local out
+    out="$(tv shell am broadcast -n "${LAUNCHER_PKG}/la.bsmith.launcher.ThemeReceiver" ${1:+--es theme "$1"} 2>/dev/null | tr -d '\r' || true)"
+    [[ "${out}" == *'data="'* ]] || return 0
+    out="${out#*data=\"}"
+    printf '%s\n' "${out%\"}"
+}
+
+# Switches the launcher's theme: to NAME (a theme's name or label, any case,
+# spaces or dashes for underscores), else one picked from a menu in a
+# terminal. Elsewhere, lists them, marking the current one. Opens the
+# launcher on the TV to show it.
+do_theme() {
+    local list want="" current name label mark key
+    local -a items=()
+    connect
+    [[ "$(state "${LAUNCHER_PKG}")" != absent ]] || die "The launcher is not installed: run firetv install"
+    list="$(launcher_themes)"
+    [[ -n "${list}" ]] || die "The launcher on the TV is too old to switch themes from here: run firetv install to update it"
+    current="$(awk -F '\t' '$3 == "*" { print $1 }' <<< "${list}")"
+    if (( $# > 0 )); then
+        key="$(printf '%s' "$*" | tr 'a-z -' 'A-Z__')"
+        while IFS=$'\t' read -r name label mark; do
+            [[ "${key}" != "${name}" && "${key}" != "$(printf '%s' "${label}" | tr 'a-z -' 'A-Z__')" ]] || want="${name}"
+        done <<< "${list}"
+        [[ -n "${want}" ]] || die "No theme named $* (see firetv theme)"
+    elif [[ -t 0 && -t 1 ]]; then
+        while IFS=$'\t' read -r name label mark; do
+            items+=("${label}${mark:+ (current)}"$'\t'"${name}")
+        done <<< "${list}"
+        # Esc or end of input gives the current theme, which changes nothing.
+        want="$(choose_one "Theme" "${current}" "${items[@]}")"
+    else
+        while IFS=$'\t' read -r name label mark; do
+            printf '%s\t%s%s\n' "${name}" "${label}" "${mark:+ (current)}"
+        done <<< "${list}"
+        return 0
+    fi
+    label="$(awk -F '\t' -v n="${want}" '$1 == n { print $2 }' <<< "${list}")"
+    if [[ "${want}" == "${current}" ]]; then
+        log_info "The launcher is already in ${label}."
+        return 0
+    fi
+    [[ "$(launcher_themes "${want}" | awk -F '\t' '$3 == "*" { print $1 }')" == "${want}" ]] \
+        || die "The launcher did not switch to ${label}"
+    tv shell am start -n "${LAUNCHER_PKG}/.MainActivity" >/dev/null
+    _success "Switched the launcher to ${label} and opened it on the TV."
+}
+
 # The README's reset steps, in its order. A step that fails stops the rest:
 # uninstall.sh refuses while Amazon's launcher is disabled.
 do_reset() {
@@ -413,6 +468,7 @@ fi
 menu=()
 for step in "${STEPS[@]}"; do
     IFS=';' read -r name _ what <<< "${step}"
+    [[ "${name}" != setup ]] || continue
     menu+=("$(printf '%-11s %s' "${name}" "${what}")"$'\t'"${name}")
 done
 menu+=("quit"$'\t'"quit")

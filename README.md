@@ -87,13 +87,16 @@ TV tuner and a few they depend on), are never disabled.
 ### Look after the TV
 
 Every menu entry is also a command, with the same name: `firetv doctor`
-runs what doctor in the menu runs. `firetv --help` lists them all.
+runs what doctor in the menu runs. `firetv --help` lists them all, with
+`firetv setup`, the walkthrough, which is a command only.
 
 ```bash
 firetv doctor                      # check the connection, the launcher's version and key, core packages, debloat and storage; changes nothing
 firetv install                     # install or update the launcher, remove old builds, make it Home
 firetv tune                        # checklist in a terminal, tweak list elsewhere
 firetv tune fast-animations on     # turning one off restores the old values
+firetv theme                       # pick a theme in a terminal, list them elsewhere
+firetv theme terminal              # switch to one by name or label
 firetv clean                       # trim app caches, then remove old launcher builds, asking first
 firetv reboot
 ```
@@ -121,7 +124,8 @@ for you to decide on the TV.
 
 ## Themes
 
-Pick one from the Theme tile in Settings. Each is described in
+Pick one from the Theme tile in Settings, or from the computer with
+`firetv theme` (theme in the menu). Each is described in
 [docs/themes.md](docs/themes.md).
 
 <!-- screenshots -->
