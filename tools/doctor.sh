@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Check the TV in one pass: the connection, its model and Fire OS, the
-# launcher and Home, that every core package is on, how much of each
-# debloat group is off, and free storage. Changes nothing; ends with the
-# next steps. Exits 1 when a check failed.
+# launcher (its version and signing key) and Home, that every core package
+# is on, how much of each debloat group is off, and free storage. Changes
+# nothing; ends with the next steps. Exits 1 when a check failed.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 source ./adb.sh
@@ -81,9 +81,10 @@ check_launcher() {
     if ! grep -qxF "package:${LAUNCHER_PKG}" <<< "${installed}"; then
         result WARN "Launcher not installed"
         add_next_step "firetv install"
+        check_old_launchers "${installed}"
         return 0
     fi
-    result PASS "Launcher installed"
+    check_launcher_version
     check_old_launchers "${installed}"
     home="$(tv shell cmd package resolve-activity -a android.intent.action.MAIN -c android.intent.category.HOME \
         | tr -d '\r' | sed -n 's/^ *packageName=//p' | head -1)"
@@ -93,6 +94,29 @@ check_launcher() {
         result PASS "Home on Fire installed (opens the launcher from Amazon's Home)"
     else
         result WARN "Launcher is not Home"
+        add_next_step "firetv install"
+    fi
+}
+
+# The installed launcher against the latest release, and its signing key:
+# the facts the menu's update notice uses.
+check_launcher_version() {
+    read_launcher
+    if [[ -z "${INSTALLED}" ]]; then
+        result PASS "Launcher installed (its version could not be read)"
+    elif [[ -z "${LATEST}" ]]; then
+        result PASS "Launcher ${INSTALLED} installed"
+        _skip "Update check: GitHub could not be reached"
+    elif older "${INSTALLED}" "${LATEST}"; then
+        result WARN "Launcher ${INSTALLED} installed; ${LATEST} is out"
+        add_next_step "firetv install"
+    elif older "${LATEST}" "${INSTALLED}"; then
+        result PASS "Launcher ${INSTALLED} installed, newer than release ${LATEST}"
+    else
+        result PASS "Launcher ${INSTALLED} installed, the latest"
+    fi
+    if [[ "${OLD_KEY}" == true ]]; then
+        result WARN "Launcher signed with an old key, so firetv install replaces it: its favorites, hidden apps and theme are cleared"
         add_next_step "firetv install"
     fi
 }

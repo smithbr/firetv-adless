@@ -32,11 +32,14 @@ It ends by offering to set up the TV, which runs `firetv setup`:
    the debugging prompt on the TV.
 3. It downloads the launcher from the
    [latest release](../../releases/latest), installs it and makes it Home,
-   then tunes the TV and runs Doctor, in that order. Each step asks before
-   it changes anything.
+   then tunes the TV and runs Doctor, in that order. Installing asks
+   before replacing a launcher that is already there, and the other steps
+   ask before changing anything.
 
 Run `firetv setup` again any time, or `firetv` for the menu. To use a
-different TV for one command, set `FIRETV_HOST` to its IP.
+different TV for one command, set `FIRETV_HOST` to its IP. The IP is
+saved in `~/.config/firetv/host`; if the TV's IP changes, run
+`firetv setup` and answer No to "Use the TV at …?".
 
 ### Updating
 
@@ -86,7 +89,7 @@ Every menu entry is also a command, with the same name: `firetv doctor`
 runs what doctor in the menu runs. `firetv --help` lists them all.
 
 ```bash
-firetv doctor                      # check the connection, launcher, core packages, debloat and storage; changes nothing
+firetv doctor                      # check the connection, the launcher's version and key, core packages, debloat and storage; changes nothing
 firetv install                     # install or update the launcher, remove old builds, make it Home
 firetv tune                        # checklist in a terminal, tweak list elsewhere
 firetv tune fast-animations on     # turning one off restores the old values

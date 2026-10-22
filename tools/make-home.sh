@@ -1,9 +1,26 @@
 #!/usr/bin/env bash
 # Make the custom launcher the Home app: disable Amazon's launcher and the
 # home-starter that re-opens it on the Home button, then set the home
-# activity. restore-home.sh undoes all of it.
+# activity. restore-home.sh undoes all of it. Says what it changes and asks
+# first; --yes skips the question (install_launcher, whose user already
+# agreed).
+#   make-home.sh [--yes]
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
+source ./ui.sh
+
+# Options first: adb.sh asks for the TV, which --help does not need.
+ask=true
+case "${1:-}" in
+    "") ;;
+    --yes|-y) ask=false ;;
+    -h|--help)
+        printf 'Usage: %s [--yes]\n' "$(basename "$0")"
+        exit 0
+        ;;
+    *) die "Unknown option: $1 (--yes)" ;;
+esac
+
 source ./adb.sh
 
 LAUNCHER="${LAUNCHER:-la.bsmith.launcher/.MainActivity}"
@@ -15,7 +32,7 @@ tv shell pm list packages | tr -d '\r' | grep -qx "package:${LAUNCHER%%/*}" \
 
 printf 'This disables %s on the TV at %s and makes %s the Home app.\n' "${AMAZON}" "${TV}" "${LAUNCHER}"
 printf 'Fire TV Settings is part of the stock launcher; the custom launcher opens the settings sections directly.\n'
-confirm "Continue?" || exit 1
+[[ "${ask}" == false ]] || confirm "Continue?" || exit 1
 
 # Packages this run disabled, re-enabled if a later one is refused so the TV
 # is never left without a Home app.
