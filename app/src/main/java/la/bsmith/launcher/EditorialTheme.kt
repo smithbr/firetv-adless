@@ -105,9 +105,11 @@ fun EditorialTheme(shared: LauncherShared) {
     val paper = if (variant == DARK) DarkPaper else LightPaper
     val tiles = remember(shared.favorites, shared.apps) { shared.favorites + shared.apps }
     // A short line: the first settings entry (Fire TV's menu, or its first
-    // section when the menu is gone), Hidden apps, Theme, and the other look.
+    // section when the menu is gone), Sound, Hidden apps, Theme, and the other
+    // look.
     val words = remember(shared.settings, variant) {
-        listOfNotNull(shared.settings.firstOrNull()?.let<SystemEntry, Word> { Word.Setting(it) }) +
+        (shared.settings.take(1) + shared.settings.filter { it.label == "Sound" }).distinct()
+            .map<SystemEntry, Word> { Word.Setting(it) } +
             Word.Hidden + Word.ThemePick + Word.Variant(variant)
     }
 

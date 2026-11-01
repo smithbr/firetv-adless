@@ -42,6 +42,7 @@ fun shortCode(label: String): String = when (label) {
     "Settings" -> "SET"
     "Network" -> "NET"
     "Display & Sounds" -> "DSP"
+    "Sound" -> "SND"
     "Applications" -> "APP"
     "Controllers" -> "CTL"
     "Preferences" -> "PRF"
@@ -128,6 +129,7 @@ class AppRepository(private val context: Context) {
         val sections = listOf(
             "Network" to ".tv.network.NetworkActivity",
             "Display & Sounds" to ".tv.display_sounds.DisplayAndSoundsActivity",
+            "Sound" to ".tv.display_sounds.soundbar.SoundbarActivity",
             "Applications" to ".tv.applications.ApplicationsActivity",
             "Controllers" to ".tv.controllers_bluetooth_devices.ControllersAndBluetoothActivity",
             "Preferences" to ".tv.preferences.PreferencesActivity",
@@ -165,6 +167,7 @@ class AppRepository(private val context: Context) {
      * Fire TV settings sections (Display & Sounds, Preferences, My Account on
      * Fire OS 8.1.8) demand a permission only Amazon's launcher holds; they
      * stay reachable through the main Settings entry and are left out here.
+     * Sound is the one page under Display & Sounds that demands none.
      */
     private fun startable(intent: Intent): Boolean {
         val activity = pm.resolveActivity(intent, 0)?.activityInfo ?: return false
