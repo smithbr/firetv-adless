@@ -27,21 +27,14 @@ data class AppEntry(
 )
 
 /** A fixed entry that is not an app in the launcher list, such as a settings screen. */
-data class SystemEntry(val label: String, val action: SystemAction)
-
-/** What a [SystemEntry] does when picked. */
-sealed interface SystemAction {
-    data class Open(val intent: Intent) : SystemAction
-
-    /** Restarts the TV, with no question asked ([TvRestart]). */
-    data object Restart : SystemAction
-}
+data class SystemEntry(val label: String, val intent: Intent)
 
 /** A short, distinct code for a settings entry, for tiles that fit letters only. */
 fun shortCode(label: String): String = when (label) {
     "Settings" -> "SET"
     "Network" -> "NET"
     "Display & Sounds" -> "DSP"
+    "Sound" -> "SND"
     "Applications" -> "APP"
     "Controllers" -> "CTL"
     "Preferences" -> "PRF"
@@ -51,7 +44,6 @@ fun shortCode(label: String): String = when (label) {
     "Appstore" -> "STR"
     "Hidden apps" -> "HID"
     "Theme" -> "THM"
-    "Restart" -> "RST"
     else -> label.split(' ', '&', ':').filter { it.isNotBlank() && it.first().isLetter() }.take(3).joinToString("") { it.first().uppercase() }
 }
 
@@ -122,12 +114,13 @@ class AppRepository(private val context: Context) {
         val entries = mutableListOf<SystemEntry>()
         val main = Intent(Intent.ACTION_MAIN).addCategory("android.intent.category.LEANBACK_SETTINGS")
         if (pm.resolveActivity(main, 0) != null) {
-            entries += SystemEntry("Settings", SystemAction.Open(main))
+            entries += SystemEntry("Settings", main)
         }
         val settings = "com.amazon.tv.settings.v2"
         val sections = listOf(
             "Network" to ".tv.network.NetworkActivity",
             "Display & Sounds" to ".tv.display_sounds.DisplayAndSoundsActivity",
+            "Sound" to ".tv.display_sounds.soundbar.SoundbarActivity",
             "Applications" to ".tv.applications.ApplicationsActivity",
             "Controllers" to ".tv.controllers_bluetooth_devices.ControllersAndBluetoothActivity",
             "Preferences" to ".tv.preferences.PreferencesActivity",
@@ -138,13 +131,13 @@ class AppRepository(private val context: Context) {
             // By component and with no action: given ACTION_MAIN, the
             // Applications page expects a package extra and crashes on null.
             val intent = Intent().setComponent(ComponentName(settings, settings + activity))
-            if (startable(intent)) entries += SystemEntry(label, SystemAction.Open(intent))
+            if (startable(intent)) entries += SystemEntry(label, intent)
         }
         // Home on Fire (tools/home-on-fire.sh) is set up once, not watched,
         // so it sits with the settings rather than among the apps.
         val homeOnFire = pm.getLeanbackLaunchIntentForPackage(HOME_ON_FIRE)
             ?: pm.getLaunchIntentForPackage(HOME_ON_FIRE)
-        if (homeOnFire != null) entries += SystemEntry("Home on Fire", SystemAction.Open(homeOnFire))
+        if (homeOnFire != null) entries += SystemEntry("Home on Fire", homeOnFire)
         // The Appstore's home, resolved at runtime: its featured-page action
         // first (its launcher activity is the apps grid, which hands over to
         // Amazon's home screen), then whatever launch intent the package
@@ -155,8 +148,7 @@ class AppRepository(private val context: Context) {
             pm.getLeanbackLaunchIntentForPackage(storePackage),
             pm.getLaunchIntentForPackage(storePackage),
         ).firstOrNull { it != null && startable(it) }
-        if (store != null) entries += SystemEntry("Appstore", SystemAction.Open(store))
-        entries += SystemEntry("Restart", SystemAction.Restart)
+        if (store != null) entries += SystemEntry("Appstore", store)
         return entries
     }
 
@@ -165,6 +157,7 @@ class AppRepository(private val context: Context) {
      * Fire TV settings sections (Display & Sounds, Preferences, My Account on
      * Fire OS 8.1.8) demand a permission only Amazon's launcher holds; they
      * stay reachable through the main Settings entry and are left out here.
+     * Sound is the one page under Display & Sounds that demands none.
      */
     private fun startable(intent: Intent): Boolean {
         val activity = pm.resolveActivity(intent, 0)?.activityInfo ?: return false
@@ -184,8 +177,8 @@ class AppRepository(private val context: Context) {
      * would, that task shows whichever section opened it first, so each
      * launch clears it and starts the chosen section fresh.
      */
-    fun launch(open: SystemAction.Open): Boolean =
-        start(Intent(open.intent), Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    fun launch(intent: Intent): Boolean =
+        start(Intent(intent), Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
 
     /** Asks the system to uninstall the app; its own dialog confirms. Never silent. */
     fun uninstall(entry: AppEntry): Boolean {

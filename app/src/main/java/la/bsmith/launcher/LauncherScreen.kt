@@ -63,7 +63,6 @@ fun LauncherApp() {
     val resources = LocalResources.current
     val repository = remember { AppRepository(context) }
     val store = remember { LauncherStore(context) }
-    val tvRestart = remember { TvRestart(context) }
     val scope = rememberCoroutineScope()
 
     // Null until loaded: a theme is drawn only once every list is in, so
@@ -119,22 +118,7 @@ fun LauncherApp() {
         favoriteIds.orEmpty().mapNotNull { id -> apps.firstOrNull { it.id == id } }
     }
 
-    fun toast(text: String, length: Int = Toast.LENGTH_SHORT) = Toast.makeText(context, text, length).show()
-
-    fun restart() {
-        scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                tvRestart.restart(onPrompt = { scope.launch { toast(resources.getString(R.string.restart_allow), Toast.LENGTH_LONG) } })
-            }
-            val message = when (result) {
-                TvRestart.Result.RESTARTING -> return@launch
-                TvRestart.Result.NO_ADB -> R.string.restart_no_adb
-                TvRestart.Result.NOT_ALLOWED -> R.string.restart_not_allowed
-                TvRestart.Result.FAILED -> R.string.restart_failed
-            }
-            toast(resources.getString(message), Toast.LENGTH_LONG)
-        }
-    }
+    fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
 
     val shared = remember(apps, favorites, hiddenApps, favoriteIds, settings, currentTheme, variants, backdropStyle) {
         LauncherShared(
@@ -150,11 +134,7 @@ fun LauncherApp() {
                 if (!repository.launch(entry)) toast(resources.getString(R.string.cannot_launch, entry.label))
             },
             openSetting = { entry ->
-                when (val action = entry.action) {
-                    is SystemAction.Open ->
-                        if (!repository.launch(action)) toast(resources.getString(R.string.cannot_launch, entry.label))
-                    SystemAction.Restart -> restart()
-                }
+                if (!repository.launch(entry.intent)) toast(resources.getString(R.string.cannot_launch, entry.label))
             },
             toggleFavorite = { entry ->
                 scope.launch {
