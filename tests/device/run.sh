@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Builds the devicetest variant, installs it beside the launcher, runs every
-# scenario in every theme on the TV, and prints a pass/fail table. Holds the
+# Builds the devicetest variant, installs it beside the launcher, runs the
+# scenarios in the themes on the TV, and prints a pass/fail table. Holds the
 # TV lock (tools/adb.sh) throughout. Exits 1 when anything failed.
 #
-#   run.sh [--no-build] [--themes TERMINAL,AMBIENT] [--scenarios navigate,hide] [--baseline]
+#   run.sh [--no-build] [--all] [--themes TERMINAL,AMBIENT] [--scenarios navigate,hide] [--baseline]
 #
+# hide, sound and receiver run in the first theme only, since the other
+# scenarios cover what each theme wires up itself. --all, or naming scenarios
+# with --scenarios, runs them in every theme.
 # --baseline adds this run's frame timings to baseline.tsv (see merge_baseline).
 # Results, screenshots and timings go to tests/device/out/: results.tsv,
 # failures.txt (one theme/scenario/check per failure), <theme>/<scenario>.png.
@@ -16,16 +19,18 @@ for scenario_file in "${DEVICE_DIR}"/scenarios/*.sh; do
 done
 
 BUILD=1
+ONE_THEME="hide,sound,receiver"
 WRITE_BASELINE=0
 SELECTED_THEMES="$(themes | paste -sd, -)"
 SELECTED_SCENARIOS="navigate,longpress,hide,sound,receiver,perf"
 while (( $# )); do
     case "$1" in
         --no-build) BUILD=0 ;;
+        --all) ONE_THEME="" ;;
         --baseline) WRITE_BASELINE=1 ;;
         --themes) SELECTED_THEMES="${2:?--themes needs a list}"; shift ;;
-        --scenarios) SELECTED_SCENARIOS="${2:?--scenarios needs a list}"; shift ;;
-        -h|--help) sed -n '2,10s/^# \{0,1\}//p' "$0"; exit 0 ;;
+        --scenarios) SELECTED_SCENARIOS="${2:?--scenarios needs a list}"; ONE_THEME=""; shift ;;
+        -h|--help) sed -n '2,13s/^# \{0,1\}//p' "$0"; exit 0 ;;
         *) die "unknown option: $1 (see --help)" ;;
     esac
     shift
@@ -50,6 +55,7 @@ tv install -r "${APK}" | tr -d '\r' | grep -v '^Performing' || true
 started=${SECONDS}
 for theme in "${THEME_LIST[@]}"; do
     for scenario in "${SCENARIO_LIST[@]}"; do
+        [[ "${theme}" == "${THEME_LIST[0]}" || ",${ONE_THEME}," != *",${scenario},"* ]] || continue
         printf '%-12s %-10s ' "${theme}" "${scenario}" >&2
         t=${SECONDS}
         if launch "${theme}"; then
